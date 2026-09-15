@@ -42,7 +42,7 @@ export default function App() {
       const traceResponse = await fetch("http://localhost:8000/trace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code_string: code }),
+        body: JSON.stringify({ code }),
       });
 
       if (!traceResponse.ok) {
@@ -66,7 +66,7 @@ export default function App() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
+            model: "openai/gpt-oss-20b",
             messages: [{
               role: "user",
               content: `Analyze this Python code:\n${code}\nProvide the Time and Space Complexity, and a 1-sentence summary of what the code does. Return ONLY valid JSON format: {"time": "...", "space": "...", "summary": "..."}`
@@ -82,6 +82,9 @@ export default function App() {
 
     } catch (error) {
       console.warn("Backend not active, keeping mock trace:", error.message);
+      if (!llmResponse.ok) {
+           throw new Error(`Groq API error ${llmResponse.status}: ${await llmResponse.text()}`);
+}
       alert("Notice: Could not reach http://localhost:8000. Running mock data for local testing.");
     } finally {
       setIsLoading(false);
@@ -89,7 +92,10 @@ export default function App() {
   };
 
   const activeData = steps[currentStep] || FALLBACK_TRACE[0];
-  const activeArr = activeData.variables?.arr || [];
+  // The visualizer only supports an array named `arr`; never render arbitrary values as one.
+  const activeArr = Array.isArray(activeData.variables?.arr)
+    ? activeData.variables.arr
+    : [];
   const pointerJ = activeData.variables?.j;
 
   return (
