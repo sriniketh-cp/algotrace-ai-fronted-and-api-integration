@@ -4,13 +4,13 @@ import {
   Play, Pause, SkipBack, SkipForward, ChevronsLeft, ChevronsRight,
   Loader2, Zap, AlertTriangle, Clock, Hash, ChevronRight, ChevronDown,
   Code2, Settings2, Activity, Terminal, Info, Cpu, MemoryStick, RefreshCw,
-  Braces, List, Type, ToggleLeft, Binary, BookOpen, FlaskConical
+  Braces, List, Type, ToggleLeft, Binary, BookOpen, FlaskConical, Sparkles
 } from 'lucide-react';
 
 // ─── Preset Examples ─────────────────────────────────────────────────────────
 const EXAMPLES = {
   "Bubble Sort": `arr = [5, 2, 8, 1, 9, 3]\nn = len(arr)\nfor i in range(n):\n    for j in range(0, n - i - 1):\n        if arr[j] > arr[j + 1]:\n            arr[j], arr[j + 1] = arr[j + 1], arr[j]`,
-  "Fibonacci": `def fib(n):\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nresult = fib(6)`,
+  "Fibonacci": `series = []\nn = 8\na, b = 0, 1\nfor i in range(n):\n    series.append(a)\n    a, b = b, a + b\nresult = series`,
   "Binary Search": `def binary_search(arr, target):\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1\n\narr = [1, 3, 5, 7, 9, 11, 13]\nresult = binary_search(arr, 7)`,
   "Factorial": `def factorial(n):\n    if n == 0:\n        return 1\n    return n * factorial(n - 1)\n\nresult = factorial(5)`,
   "List Comp": `numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\nevens = [x for x in numbers if x % 2 == 0]\nsquares = [x ** 2 for x in evens]\ntotal = sum(squares)`,
@@ -163,6 +163,33 @@ function ArrayVisualizer({ arr, vars }) {
   );
 }
 
+function ScalarVisualizer({ vars }) {
+  if (!vars) return null;
+  const scalars = Object.entries(vars).filter(([k,v]) => 
+    (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') 
+    && !['arr', 'i', 'j'].includes(k)
+  );
+  if (scalars.length === 0) return null;
+  return (
+    <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Binary size={13} className="text-pink-400" />
+        <span className="text-xs font-semibold text-pink-300 uppercase tracking-wider">Variable State</span>
+      </div>
+      <div className="flex flex-wrap gap-4 justify-center">
+        {scalars.map(([k, v]) => (
+          <div key={k} className="flex flex-col items-center gap-1.5">
+            <div className="min-w-[3rem] h-11 px-3 flex items-center justify-center text-lg font-bold rounded-lg border-2 bg-slate-800 border-pink-500/40 text-pink-100 shadow-lg shadow-pink-500/20">
+              {String(v)}
+            </div>
+            <span className="text-[10px] font-bold text-pink-400 bg-pink-400/10 px-2 py-0.5 rounded-full">{k}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StatusBanner({ error, truncated, timedOut }) {
   if (!error && !truncated && !timedOut) return null;
   return (
@@ -204,6 +231,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('variables');
   const [selectedExample, setSelectedExample] = useState('Bubble Sort');
   const [hasRun, setHasRun] = useState(false);
+  const [stepExplanations, setStepExplanations] = useState({});
+  const [isExplainingStep, setIsExplainingStep] = useState(false);
   const editorRef = useRef(null);
   const decorationsRef = useRef([]);
   const timelineRef = useRef(null);
@@ -249,6 +278,7 @@ export default function App() {
     setSteps([]);
     setCurrentStep(0);
     setHasRun(false);
+    setStepExplanations({});
     try {
       const res = await fetch('http://localhost:8000/trace', {
         method: 'POST',
@@ -273,15 +303,17 @@ export default function App() {
         try {
           const lr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
-            headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+            headers: { Authorization: `Bearer ${KEY.replace(/^"|"$/g, '')}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              model: 'llama3-8b-8192',
+              model: 'openai/gpt-oss-20b',
               messages: [{ role: 'user', content: `Analyze this Python code:\n${code}\nReturn ONLY valid JSON: {"time": "O(...)", "space": "O(...)", "summary": "One sentence."}` }],
               response_format: { type: 'json_object' },
             }),
           });
           const ld = await lr.json();
-          setComplexity(JSON.parse(ld.choices[0].message.content));
+          if (!lr.ok) throw new Error(ld.error?.message || `Groq HTTP ${lr.status}`);
+          const content = ld.choices?.[0]?.message?.content;
+          if (content) setComplexity(JSON.parse(content));
         } catch (e) { console.warn('AI failed:', e); }
         finally { setComplexityLoading(false); }
       }
@@ -293,6 +325,53 @@ export default function App() {
   };
 
   const jumpTo = (idx) => { setCurrentStep(idx); setIsPlaying(false); };
+
+  const handleExplainStep = async (stepIdx) => {
+    if (!import.meta.env.VITE_GROQ_API_KEY) return;
+    if (stepExplanations[stepIdx]) return; // already explained
+
+    const curr = steps[stepIdx];
+    const prev = steps[stepIdx - 1];
+    
+    setIsExplainingStep(true);
+    try {
+      const KEY = import.meta.env.VITE_GROQ_API_KEY.replace(/^"|"$/g, '');
+      const prevVars = prev ? JSON.stringify(prev.variables) : "None (start of execution)";
+      const currVars = JSON.stringify(curr.variables);
+      
+      const prompt = `Analyze this exact execution step in a Python program.
+Code:
+${code}
+
+Event: ${curr.event} at Line ${curr.line}
+Previous variables: ${prevVars}
+Current variables: ${currVars}
+
+Explain what just happened in 1-2 concise, educational sentences focusing on variable state changes.
+Return ONLY valid JSON: {"explanation": "..."}`;
+
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'openai/gpt-oss-20b',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "API Error");
+      const content = data.choices?.[0]?.message?.content;
+      if (content) {
+        const parsed = JSON.parse(content);
+        setStepExplanations(prevExps => ({...prevExps, [stepIdx]: parsed.explanation}));
+      }
+    } catch (e) {
+      console.warn("Step explanation failed", e);
+    } finally {
+      setIsExplainingStep(false);
+    }
+  };
 
   const es = activeStep ? (EVENT_STYLES[activeStep.event] || EVENT_STYLES.line) : EVENT_STYLES.line;
 
@@ -320,6 +399,11 @@ export default function App() {
                 {name}
               </button>
             ))}
+            <div className="w-px h-3 bg-slate-700/60 mx-1" />
+            <button onClick={() => { setSelectedExample('Custom'); setCode('# Paste your Python code here\n\n'); setSteps([]); setHasRun(false); setComplexity(null); setFetchError(null); setTraceError(null); }}
+              className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-all duration-150 ${selectedExample === 'Custom' ? 'bg-indigo-600/25 border-indigo-500/50 text-indigo-300' : 'border-slate-700/50 text-indigo-400/70 hover:border-indigo-500/50 hover:text-indigo-300'}`}>
+              + Custom
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-2.5">
@@ -386,17 +470,35 @@ export default function App() {
 
           {/* Step info bar */}
           {hasRun && activeStep ? (
-            <div className={`shrink-0 px-4 py-2.5 border-b border-l-2 ${es.bg} ${es.text.replace('text-','border-')} flex items-center justify-between`}>
-              <div className="flex items-center gap-3">
-                <span className={`text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full border ${es.bg} ${es.text}`}>{es.label}</span>
-                <span className="text-xs text-slate-400">Line <span className={`font-mono font-bold ${es.text}`}>{activeStep.line}</span></span>
-                <span className="text-slate-700 text-xs">•</span>
-                <span className="text-xs text-slate-400">Step <span className="font-mono font-bold text-slate-200">{currentStep + 1}</span>/<span className="font-mono text-slate-400">{steps.length}</span></span>
+            <div className="flex flex-col shrink-0">
+              <div className={`px-4 py-2.5 border-b border-l-2 ${es.bg} ${es.text.replace('text-','border-')} flex items-center justify-between`}>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full border ${es.bg} ${es.text}`}>{es.label}</span>
+                  <span className="text-xs text-slate-400">Line <span className={`font-mono font-bold ${es.text}`}>{activeStep.line}</span></span>
+                  <span className="text-slate-700 text-xs">•</span>
+                  <span className="text-xs text-slate-400">Step <span className="font-mono font-bold text-slate-200">{currentStep + 1}</span>/<span className="font-mono text-slate-400">{steps.length}</span></span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${es.text} text-xs`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${es.dot} animate-pulse`} />
+                  {activeStep.event === 'call' ? 'Function called' : activeStep.event === 'return' ? 'Returning' : 'Executing'}
+                  {import.meta.env.VITE_GROQ_API_KEY && (
+                    <button onClick={() => handleExplainStep(currentStep)} disabled={isExplainingStep} className="ml-3 flex items-center gap-1 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 px-2 py-0.5 rounded border border-violet-500/30 transition-colors cursor-pointer">
+                      <Sparkles size={11} /> {stepExplanations[currentStep] ? 'Explained' : 'Explain Step'}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className={`flex items-center gap-1.5 ${es.text} text-xs`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${es.dot} animate-pulse`} />
-                {activeStep.event === 'call' ? 'Function called' : activeStep.event === 'return' ? 'Returning' : 'Executing'}
-              </div>
+              {stepExplanations[currentStep] && (
+                <div className="px-4 py-2 bg-violet-900/10 border-b border-violet-500/20">
+                  <p className="text-xs text-violet-200 leading-relaxed"><strong className="text-violet-400">AI Tutor:</strong> {stepExplanations[currentStep]}</p>
+                </div>
+              )}
+              {isExplainingStep && !stepExplanations[currentStep] && (
+                <div className="px-4 py-2 bg-violet-900/10 border-b border-violet-500/20 flex items-center gap-2">
+                  <Loader2 size={12} className="animate-spin text-violet-400" />
+                  <span className="text-xs text-violet-300">Generating explanation...</span>
+                </div>
+              )}
             </div>
           ) : !hasRun ? (
             <div className="shrink-0 px-4 py-6 border-b border-slate-800/50 flex flex-col items-center justify-center gap-2 text-center">
@@ -405,6 +507,33 @@ export default function App() {
               <p className="text-xs text-slate-600">Select an example or write Python code, then click <strong className="text-blue-400">Run Trace</strong></p>
             </div>
           ) : null}
+
+          {/* AI Explanation Banner */}
+          {hasRun && (
+            <div className="border-b border-violet-500/30 shrink-0">
+              {complexityLoading ? (
+                <div className="bg-violet-900/30 px-4 py-3 flex items-center gap-2">
+                  <Loader2 size={13} className="animate-spin text-violet-400 shrink-0" />
+                  <span className="text-xs text-violet-300">AI is analyzing your code…</span>
+                </div>
+              ) : complexity?.summary ? (
+                <div className="bg-violet-900/40 px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <Zap size={14} className="text-violet-400 mt-0.5 shrink-0" />
+                    <div>
+                      <h3 className="text-xs font-bold text-violet-300 uppercase tracking-wider mb-1">AI Code Explanation</h3>
+                      <p className="text-sm text-violet-100 leading-relaxed">{complexity.summary}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : !import.meta.env.VITE_GROQ_API_KEY ? (
+                <div className="bg-slate-900/40 px-4 py-2.5 flex items-center gap-2">
+                  <Zap size={12} className="text-slate-600 shrink-0" />
+                  <span className="text-[11px] text-slate-600">AI analysis disabled — set <code className="text-slate-500 bg-slate-800/60 px-1 rounded">VITE_GROQ_API_KEY</code> to enable complexity insights</span>
+                </div>
+              ) : null}
+            </div>
+          )}
 
           {/* Status banners */}
           {hasRun && <StatusBanner error={traceError} truncated={truncated} timedOut={timedOut} />}
@@ -452,7 +581,26 @@ export default function App() {
             {/* Variables tab */}
             {hasRun && activeTab === 'variables' && (
               <>
-                {activeStep?.variables?.arr !== undefined && <ArrayVisualizer arr={activeStep.variables.arr} vars={activeStep.variables} />}
+                {activeStep?.variables?.arr !== undefined ? (
+                  <ArrayVisualizer arr={activeStep.variables.arr} vars={activeStep.variables} />
+                ) : activeStep?.variables?.series !== undefined && Array.isArray(activeStep.variables.series) ? (
+                  <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <List size={13} className="text-amber-400" />
+                      <span className="text-xs font-semibold text-amber-300 uppercase tracking-wider">Fibonacci Series</span>
+                      <span className="ml-1 text-xs text-slate-600">series[{activeStep.variables.series.length}]</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {activeStep.variables.series.map((val, idx) => (
+                        <div key={idx} className="flex flex-col items-center gap-0.5">
+                          <div className="w-11 h-11 flex items-center justify-center text-sm font-bold rounded-lg border-2 bg-amber-900/40 border-amber-500/60 text-amber-100 shadow-lg shadow-amber-500/20 transition-all duration-300">{val}</div>
+                          <span className="text-[10px] font-mono text-slate-600">{idx}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <ScalarVisualizer vars={activeStep?.variables} />
                 <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 overflow-hidden">
                   <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800/50">
                     <Braces size={12} className="text-slate-500" />
@@ -471,30 +619,38 @@ export default function App() {
                 </div>
 
                 {/* Complexity */}
-                {(complexity || complexityLoading) && (
-                  <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Zap size={13} className="text-violet-400" />
-                      <span className="text-xs font-semibold text-violet-300 uppercase tracking-wider">AI Complexity Analysis</span>
-                      {complexityLoading && <Loader2 size={11} className="animate-spin text-violet-400 ml-1" />}
-                    </div>
-                    {complexity && (
-                      <>
-                        <div className="flex gap-2 mb-3">
-                          <div className="flex-1 bg-slate-800/70 rounded-lg px-3 py-2 border border-slate-700/40">
-                            <div className="flex items-center gap-1 mb-1"><Cpu size={10} className="text-blue-400" /><span className="text-[10px] text-slate-500 uppercase tracking-wider">Time</span></div>
-                            <span className="font-mono text-sm font-bold text-blue-300">{complexity.time}</span>
-                          </div>
-                          <div className="flex-1 bg-slate-800/70 rounded-lg px-3 py-2 border border-slate-700/40">
-                            <div className="flex items-center gap-1 mb-1"><MemoryStick size={10} className="text-emerald-400" /><span className="text-[10px] text-slate-500 uppercase tracking-wider">Space</span></div>
-                            <span className="font-mono text-sm font-bold text-emerald-300">{complexity.space}</span>
-                          </div>
-                        </div>
-                        <p className="text-xs text-slate-400 leading-relaxed">{complexity.summary}</p>
-                      </>
-                    )}
+                <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Cpu size={13} className="text-blue-400" />
+                    <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">Time &amp; Space Complexity</span>
+                    {complexityLoading && <Loader2 size={11} className="animate-spin text-blue-400 ml-1" />}
                   </div>
-                )}
+                  {complexityLoading ? (
+                    <div className="flex gap-2">
+                      {['Time', 'Space'].map(label => (
+                        <div key={label} className="flex-1 bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/30 animate-pulse">
+                          <div className="text-[10px] text-slate-600 uppercase tracking-wider mb-1">{label}</div>
+                          <div className="h-5 w-16 bg-slate-700/60 rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : complexity ? (
+                    <div className="flex gap-2">
+                      <div className="flex-1 bg-slate-800/70 rounded-lg px-3 py-2 border border-slate-700/40">
+                        <div className="flex items-center gap-1 mb-1"><Cpu size={10} className="text-blue-400" /><span className="text-[10px] text-slate-500 uppercase tracking-wider">Time</span></div>
+                        <span className="font-mono text-sm font-bold text-blue-300">{complexity.time}</span>
+                      </div>
+                      <div className="flex-1 bg-slate-800/70 rounded-lg px-3 py-2 border border-slate-700/40">
+                        <div className="flex items-center gap-1 mb-1"><MemoryStick size={10} className="text-emerald-400" /><span className="text-[10px] text-slate-500 uppercase tracking-wider">Space</span></div>
+                        <span className="font-mono text-sm font-bold text-emerald-300">{complexity.space}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-600 text-center py-2">
+                      {import.meta.env.VITE_GROQ_API_KEY ? 'Analysis unavailable' : 'Set VITE_GROQ_API_KEY to enable AI complexity analysis'}
+                    </p>
+                  )}
+                </div>
               </>
             )}
 
