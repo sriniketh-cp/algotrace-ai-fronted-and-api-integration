@@ -233,6 +233,8 @@ export default function App() {
   const [hasRun, setHasRun] = useState(false);
   const [stepExplanations, setStepExplanations] = useState({});
   const [isExplainingStep, setIsExplainingStep] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizationResult, setOptimizationResult] = useState(null);
   const editorRef = useRef(null);
   const decorationsRef = useRef([]);
   const timelineRef = useRef(null);
@@ -268,8 +270,9 @@ export default function App() {
     }
   }, [currentStep, activeTab]);
 
-  const handleRun = async () => {
-    if (!code.trim()) return;
+  const handleRun = async (overrideCode) => {
+    const codeToRun = typeof overrideCode === 'string' ? overrideCode : code;
+    if (!codeToRun.trim()) return;
     setIsLoading(true);
     setIsPlaying(false);
     setFetchError(null);
@@ -283,7 +286,7 @@ export default function App() {
       const res = await fetch('http://localhost:8000/trace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, max_steps: maxSteps }),
+        body: JSON.stringify({ code: codeToRun, max_steps: maxSteps }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -306,7 +309,7 @@ export default function App() {
             headers: { Authorization: `Bearer ${KEY.replace(/^"|"$/g, '')}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'openai/gpt-oss-20b',
-              messages: [{ role: 'user', content: `Analyze this Python code:\n${code}\nReturn ONLY valid JSON: {"time": "O(...)", "space": "O(...)", "summary": "One sentence."}` }],
+              messages: [{ role: 'user', content: `Analyze this Python code:\n${codeToRun}\nReturn ONLY valid JSON: {"time": "O(...)", "space": "O(...)", "summary": "One sentence."}` }],
               response_format: { type: 'json_object' },
             }),
           });
@@ -325,6 +328,46 @@ export default function App() {
   };
 
   const jumpTo = (idx) => { setCurrentStep(idx); setIsPlaying(false); };
+
+  const handleOptimizeCode = async () => {
+    if (!import.meta.env.VITE_GROQ_API_KEY) return;
+    if (!code.trim()) return;
+    
+    setIsOptimizing(true);
+    setOptimizationResult(null);
+    try {
+      const KEY = import.meta.env.VITE_GROQ_API_KEY.replace(/^"|"$/g, '');
+      const prompt = `Analyze this Python code. Identify performance bottlenecks or algorithm inefficiencies.
+Return an optimized version of the code and a short 1-2 sentence rationale explaining the optimization.
+Do not wrap the code in markdown blocks, just return raw string for the code in the json.
+
+Code:
+${code}
+
+Return ONLY valid JSON: {"optimized_code": "...", "rationale": "..."}`;
+
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'openai/gpt-oss-20b',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "API Error");
+      const content = data.choices?.[0]?.message?.content;
+      if (content) {
+        const parsed = JSON.parse(content);
+        setOptimizationResult(parsed);
+      }
+    } catch (e) {
+      console.warn("Optimization failed", e);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
 
   const handleExplainStep = async (stepIdx) => {
     if (!import.meta.env.VITE_GROQ_API_KEY) return;
@@ -435,6 +478,11 @@ Return ONLY valid JSON: {"explanation": "..."}`;
               {isPlaying && <span className="text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Read-only while playing</span>}
             </div>
             <div className="flex items-center gap-3">
+              {import.meta.env.VITE_GROQ_API_KEY && (
+                <button onClick={handleOptimizeCode} disabled={isOptimizing} className="flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-2.5 py-1 rounded-md border border-blue-500/30 transition-colors cursor-pointer text-[10px] font-bold">
+                  {isOptimizing ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />} Optimize
+                </button>
+              )}
               <span className="text-xs text-slate-700 font-mono">{code.split('\n').length} lines</span>
               <div className="flex gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
@@ -443,7 +491,7 @@ Return ONLY valid JSON: {"explanation": "..."}`;
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 relative">
             <Editor height="100%" defaultLanguage="python" theme="vs-dark" value={code}
               onChange={v => setCode(v || '')}
               onMount={editor => { editorRef.current = editor; }}
@@ -454,6 +502,30 @@ Return ONLY valid JSON: {"explanation": "..."}`;
                 renderLineHighlight: 'gutter', glyphMargin: true,
                 readOnly: isPlaying, cursorBlinking: 'smooth',
               }} />
+              
+            {optimizationResult && (
+              <div className="absolute bottom-4 left-4 right-4 bg-slate-900 border border-blue-500/50 rounded-xl shadow-2xl p-4 z-10">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2 text-blue-400">
+                    <Zap size={14} />
+                    <span className="text-xs font-bold uppercase tracking-wider">AI Optimization Ready</span>
+                  </div>
+                  <button onClick={() => setOptimizationResult(null)} className="text-slate-500 hover:text-slate-300">
+                    <span className="text-xs">✕</span>
+                  </button>
+                </div>
+                <p className="text-sm text-slate-300 mb-4">{optimizationResult.rationale}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => {
+                    setCode(optimizationResult.optimized_code);
+                    setOptimizationResult(null);
+                    handleRun(optimizationResult.optimized_code);
+                  }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-lg shadow-blue-500/20">
+                    Load & Run Trace
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           {fetchError && (
             <div className="px-4 py-2.5 bg-red-950/50 border-t border-red-500/25 shrink-0">
