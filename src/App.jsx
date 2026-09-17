@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import {
   Play, Pause, SkipBack, SkipForward, ChevronsLeft, ChevronsRight,
-  Loader2, Zap, AlertTriangle, Clock, Hash, ChevronRight, ChevronDown,
-  Code2, Settings2, Activity, Terminal, Info, Cpu, MemoryStick, RefreshCw,
-  Braces, List, Type, ToggleLeft, Binary, BookOpen, FlaskConical, Sparkles,
-  Target, Bot, MessageSquare
+  Loader2, Zap, AlertTriangle, Code2, Settings2, Activity, Terminal,
+  Cpu, MemoryStick, RefreshCw, Braces, BookOpen, Sparkles,
+  Target, Bot, Rocket
 } from 'lucide-react';
 
 import { EXAMPLES, TYPE_STYLES, EVENT_STYLES, SPEEDS } from './utils/constants';
@@ -166,11 +165,11 @@ export default function App() {
 
   const handleExplainStep = async (stepIdx) => {
     if (!getApiKey()) return;
-    if (stepExplanations[stepIdx]) return; // already explained
+    if (stepExplanations[stepIdx]) return;
 
     const curr = steps[stepIdx];
     const prev = steps[stepIdx - 1];
-    
+
     setIsExplainingStep(true);
     try {
       const res = await explainStep(code, curr, prev);
@@ -187,7 +186,7 @@ export default function App() {
   const handleAnalyzeError = async () => {
     if (!getApiKey()) return;
     if (!traceError || !code.trim()) return;
-    
+
     setIsAnalyzingError(true);
     setErrorAnalysis(null);
     try {
@@ -200,7 +199,6 @@ export default function App() {
     }
   };
 
-  // ─── AI Feature 3: Edge Case & Stress-Test Generator Handlers ────────────────
   const handleGenerateEdgeCases = async () => {
     if (!code.trim() || !getApiKey()) return;
     setIsGeneratingEdgeCases(true);
@@ -220,7 +218,6 @@ export default function App() {
     handleRun(modifiedCode);
   };
 
-  // ─── AI Feature 4: Interactive AlgoTutor Copilot Handlers ────────────────────
   const handleSendTutorMessage = async (question) => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMsg = { sender: 'user', text: question, timestamp: time };
@@ -230,14 +227,8 @@ export default function App() {
 
     try {
       const answer = await askAlgoTutor({
-        code,
-        steps,
-        currentStep,
-        activeStep,
-        question,
-        history: updatedHistory,
-        complexity,
-        traceError
+        code, steps, currentStep, activeStep, question,
+        history: updatedHistory, complexity, traceError
       });
       const botTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setTutorMessages(prev => [...prev, { sender: 'assistant', text: answer, timestamp: botTime }]);
@@ -257,430 +248,628 @@ export default function App() {
     }
   };
 
-  const handleClearTutor = () => {
-    setTutorMessages([]);
-  };
+  const handleClearTutor = () => setTutorMessages([]);
 
   const es = activeStep ? (EVENT_STYLES[activeStep.event] || EVENT_STYLES.line) : EVENT_STYLES.line;
+  const progress = steps.length > 0 ? Math.round(((currentStep + 1) / steps.length) * 100) : 0;
 
   return (
-    <div className="flex flex-col h-screen bg-[#080c18] text-slate-100 overflow-hidden" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-base)', fontFamily: 'var(--font-sans)', color: '#e2e8f0' }}>
 
-      {/* Top Bar */}
-      <header className="flex items-center justify-between px-5 py-2.5 border-b border-slate-800/70 bg-[#0b0f1e]/95 shrink-0 z-20">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+      {/* ── Top Navigation Bar ─────────────────────────────────────────────── */}
+      <header className="shrink-0 flex items-center justify-between px-5 py-0 border-b z-20"
+        style={{ borderColor: 'var(--border-subtle)', background: 'rgba(12,16,34,0.97)', backdropFilter: 'blur(16px)', height: '52px' }}>
+
+        {/* Left: Brand + Examples */}
+        <div className="flex items-center gap-4 min-w-0">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg"
+              style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 0 16px rgba(99,102,241,0.4)' }}>
               <Activity size={15} className="text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent leading-none">AlgoTrace AI</h1>
-              <p className="text-[10px] text-slate-500 leading-none mt-0.5">Python Execution Tracer</p>
+              <h1 className="text-sm font-extrabold leading-none gradient-text tracking-tight">AlgoTrace AI</h1>
+              <p className="text-[10px] leading-none mt-0.5" style={{ color: 'rgba(148,163,184,0.5)' }}>Python Execution Tracer</p>
             </div>
           </div>
-          <div className="h-5 w-px bg-slate-800" />
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <BookOpen size={11} className="text-slate-600" />
+
+          <div className="h-5 w-px mx-0.5" style={{ background: 'var(--border-muted)' }} />
+
+          {/* Example pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            <BookOpen size={11} style={{ color: 'rgba(148,163,184,0.35)', flexShrink: 0 }} />
             {Object.keys(EXAMPLES).map(name => (
               <button key={name} onClick={() => {
-                setSelectedExample(name);
-                setCode(EXAMPLES[name]);
-                setSteps([]);
-                setHasRun(false);
-                setComplexity(null);
-                setFetchError(null);
-                setTraceError(null);
-                setEdgeCases([]);
+                setSelectedExample(name); setCode(EXAMPLES[name]);
+                setSteps([]); setHasRun(false); setComplexity(null);
+                setFetchError(null); setTraceError(null); setEdgeCases([]);
               }}
-                className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-all duration-150 ${selectedExample === name ? 'bg-blue-600/25 border-blue-500/50 text-blue-300' : 'border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-300'}`}>
+                className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer transition-all duration-150 whitespace-nowrap"
+                style={selectedExample === name ? {
+                  background: 'rgba(99,102,241,0.2)', borderColor: 'rgba(99,102,241,0.5)', color: '#a5b4fc'
+                } : {
+                  background: 'transparent', borderColor: 'var(--border-subtle)', color: 'rgba(148,163,184,0.6)'
+                }}>
                 {name}
               </button>
             ))}
-            <div className="w-px h-3 bg-slate-700/60 mx-1" />
+            <div className="w-px h-3.5 mx-0.5" style={{ background: 'var(--border-muted)' }} />
             <button onClick={() => {
-              setSelectedExample('Custom');
-              setCode('# Paste your Python code here\n\n');
-              setSteps([]);
-              setHasRun(false);
-              setComplexity(null);
-              setFetchError(null);
-              setTraceError(null);
-              setEdgeCases([]);
+              setSelectedExample('Custom'); setCode('# Paste your Python code here\n\n');
+              setSteps([]); setHasRun(false); setComplexity(null);
+              setFetchError(null); setTraceError(null); setEdgeCases([]);
             }}
-              className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-all duration-150 ${selectedExample === 'Custom' ? 'bg-indigo-600/25 border-indigo-500/50 text-indigo-300' : 'border-slate-700/50 text-indigo-400/70 hover:border-indigo-500/50 hover:text-indigo-300'}`}>
+              className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer transition-all duration-150 whitespace-nowrap"
+              style={selectedExample === 'Custom' ? {
+                background: 'rgba(139,92,246,0.2)', borderColor: 'rgba(139,92,246,0.5)', color: '#c4b5fd'
+              } : {
+                background: 'transparent', borderColor: 'var(--border-subtle)', color: 'rgba(139,92,246,0.55)'
+              }}>
               + Custom
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Feature 2: Optimizer Button */}
+        {/* Right: AI Tools + Run */}
+        <div className="flex items-center gap-2 shrink-0 ml-3">
           {getApiKey() && (
-            <button
-              onClick={() => handleOptimizeCode()}
-              title="AI Code Optimizer (Interview Mode: Zero Built-ins)"
-              className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:border-blue-500/50 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-150"
-            >
-              <Zap size={13} className="text-blue-400" />
-              <span>Optimize</span>
-              <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
-                Zero Built-ins
-              </span>
-            </button>
+            <>
+              {/* Optimize */}
+              <button onClick={() => handleOptimizeCode()}
+                title="AI Code Optimizer — Interview & Exam Mode (Zero Built-ins)"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
+                style={{ background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.3)', color: '#93c5fd' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.18)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.1)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.3)'; }}>
+                <Zap size={12} style={{ color: '#60a5fa' }} />
+                <span>Optimize</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
+                  No Built-ins
+                </span>
+              </button>
+
+              {/* Stress Tests */}
+              <button onClick={() => { setIsEdgeCaseOpen(true); if (edgeCases.length === 0) handleGenerateEdgeCases(); }}
+                title="AI Edge Case & Stress-Test Generator"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
+                style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.28)', color: '#fcd34d' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.16)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.45)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.28)'; }}>
+                <Target size={12} style={{ color: '#fbbf24' }} />
+                <span>Stress Tests</span>
+              </button>
+
+              {/* AlgoTutor */}
+              <button onClick={() => setIsTutorOpen(p => !p)}
+                title="AlgoTutor Copilot — Ask anything about this execution"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
+                style={isTutorOpen ? {
+                  background: 'rgba(139,92,246,0.85)', borderColor: 'rgba(139,92,246,0.7)', color: '#fff',
+                  boxShadow: '0 0 12px rgba(139,92,246,0.35)'
+                } : {
+                  background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.28)', color: '#c4b5fd'
+                }}
+                onMouseEnter={e => { if (!isTutorOpen) { e.currentTarget.style.background = 'rgba(139,92,246,0.18)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.45)'; } }}
+                onMouseLeave={e => { if (!isTutorOpen) { e.currentTarget.style.background = 'rgba(139,92,246,0.1)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.28)'; } }}>
+                <Bot size={12} style={{ color: isTutorOpen ? '#fff' : '#a78bfa' }} />
+                <span>AlgoTutor</span>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: isTutorOpen ? '#fff' : '#a78bfa' }} />
+              </button>
+            </>
           )}
 
-          {/* Feature 3: Edge Case Button */}
-          {getApiKey() && (
-            <button
-              onClick={() => {
-                setIsEdgeCaseOpen(true);
-                if (edgeCases.length === 0) handleGenerateEdgeCases();
-              }}
-              title="AI Edge Case & Stress-Test Generator"
-              className="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:border-amber-500/50 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-150"
-            >
-              <Target size={13} className="text-amber-400" />
-              <span>Stress Tests</span>
-            </button>
-          )}
-
-          {/* Feature 4: AlgoTutor Button */}
-          {getApiKey() && (
-            <button
-              onClick={() => setIsTutorOpen(prev => !prev)}
-              title="Ask AlgoTutor about this execution"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-150 border ${
-                isTutorOpen
-                  ? 'bg-violet-600 text-white border-violet-500 shadow-md shadow-violet-500/25'
-                  : 'bg-violet-600/15 hover:bg-violet-600/25 text-violet-300 border-violet-500/30 hover:border-violet-500/50'
-              }`}
-            >
-              <Bot size={13} className={isTutorOpen ? 'text-white' : 'text-violet-400'} />
-              <span>AlgoTutor</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-            </button>
-          )}
-
-          <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-1.5">
-            <Settings2 size={11} className="text-slate-500" />
-            <span className="text-xs text-slate-500">Steps:</span>
+          {/* Max Steps */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px]"
+            style={{ background: 'rgba(15,23,42,0.7)', borderColor: 'var(--border-muted)', color: 'rgba(148,163,184,0.6)' }}>
+            <Settings2 size={11} />
+            <span>Steps:</span>
             <input type="number" value={maxSteps}
               onChange={e => setMaxSteps(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
-              className="w-8 bg-transparent text-xs text-slate-200 font-mono text-center outline-none" min={1} max={50} />
-            <span className="text-xs text-slate-700">/50</span>
+              className="w-7 bg-transparent text-center outline-none font-mono font-semibold"
+              style={{ color: '#e2e8f0' }} min={1} max={50} />
+            <span style={{ color: 'rgba(148,163,184,0.35)' }}>/50</span>
           </div>
 
+          {/* Run Trace */}
           <button id="run-trace-btn" onClick={handleRun} disabled={isLoading || !code.trim()}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed text-white text-sm font-bold px-4 py-2 rounded-lg shadow-lg shadow-blue-500/20 transition-all duration-200 cursor-pointer">
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white cursor-pointer transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 0 20px rgba(99,102,241,0.3)' }}
+            onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.boxShadow = '0 0 28px rgba(99,102,241,0.5)'; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 0 20px rgba(99,102,241,0.3)'; }}>
             {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
             {isLoading ? 'Tracing…' : 'Run Trace'}
           </button>
         </div>
       </header>
 
-      {/* Main layout */}
+      {/* ── Main Two-Pane Layout ───────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
 
-        {/* Editor pane */}
-        <div className="flex flex-col border-r border-slate-800/60 min-h-0" style={{ width: '55%' }}>
-          <div className="flex items-center justify-between px-4 py-2 bg-slate-900/40 border-b border-slate-800/50 shrink-0">
+        {/* ── LEFT: Editor Pane ───────────────────────────────────────────── */}
+        <div className="flex flex-col min-h-0 border-r" style={{ width: '55%', borderColor: 'var(--border-subtle)' }}>
+
+          {/* Editor Header */}
+          <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b"
+            style={{ background: 'rgba(12,16,34,0.6)', borderColor: 'var(--border-subtle)' }}>
             <div className="flex items-center gap-2">
-              <Code2 size={12} className="text-slate-500" />
-              <span className="text-xs text-slate-500 font-medium">Python Editor</span>
-              {isPlaying && <span className="text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Read-only while playing</span>}
-            </div>
-            <div className="flex items-center gap-2">
-              {getApiKey() && (
-                <>
-                  <button onClick={() => handleOptimizeCode()} className="flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-2.5 py-1 rounded-md border border-blue-500/30 transition-colors cursor-pointer text-[10px] font-bold">
-                    {isOptimizing ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />} Optimize (No Built-ins)
-                  </button>
-                  <button onClick={() => { setIsEdgeCaseOpen(true); if (edgeCases.length === 0) handleGenerateEdgeCases(); }} className="flex items-center gap-1 bg-amber-600/15 hover:bg-amber-600/30 text-amber-300 px-2.5 py-1 rounded-md border border-amber-500/30 transition-colors cursor-pointer text-[10px] font-bold">
-                    <Target size={11} /> Stress Tests
-                  </button>
-                  <button onClick={() => setIsTutorOpen(prev => !prev)} className="flex items-center gap-1 bg-violet-600/15 hover:bg-violet-600/30 text-violet-300 px-2.5 py-1 rounded-md border border-violet-500/30 transition-colors cursor-pointer text-[10px] font-bold">
-                    <Bot size={11} /> Ask Tutor
-                  </button>
-                </>
-              )}
-              <span className="text-xs text-slate-700 font-mono ml-1">{code.split('\n').length} lines</span>
-              <div className="flex gap-1.5 ml-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-                <div className="w-2.5 h-2.5 rounded-full bg-amber-500/60" />
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/60" />
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#ef4444', opacity: 0.6 }} />
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#f59e0b', opacity: 0.6 }} />
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#22c55e', opacity: 0.6 }} />
               </div>
+              <div className="w-px h-3.5 mx-1" style={{ background: 'var(--border-muted)' }} />
+              <Code2 size={12} style={{ color: 'rgba(148,163,184,0.4)' }} />
+              <span className="text-[11px] font-medium" style={{ color: 'rgba(148,163,184,0.55)' }}>
+                main.py
+              </span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                style={{ background: 'rgba(148,163,184,0.06)', color: 'rgba(148,163,184,0.35)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                {code.split('\n').length} lines
+              </span>
+              {isPlaying && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse"
+                  style={{ background: 'rgba(245,158,11,0.15)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}>
+                  ▶ Playing
+                </span>
+              )}
             </div>
+
+            {/* Editor AI Buttons */}
+            {getApiKey() && (
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => handleOptimizeCode()}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all duration-150 border"
+                  style={{ background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.25)', color: '#93c5fd' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(59,130,246,0.1)'}>
+                  {isOptimizing ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
+                  <span>Optimize</span>
+                </button>
+                <button onClick={() => { setIsEdgeCaseOpen(true); if (edgeCases.length === 0) handleGenerateEdgeCases(); }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all duration-150 border"
+                  style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.25)', color: '#fcd34d' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.16)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(245,158,11,0.08)'}>
+                  <Target size={10} />
+                  <span>Stress Tests</span>
+                </button>
+                <button onClick={() => setIsTutorOpen(p => !p)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all duration-150 border"
+                  style={{ background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.25)', color: '#c4b5fd' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(139,92,246,0.1)'}>
+                  <Bot size={10} />
+                  <span>Ask Tutor</span>
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Monaco Editor + Overlay */}
           <div className="flex-1 min-h-0 relative">
             <Editor height="100%" defaultLanguage="python" theme="vs-dark" value={code}
               onChange={v => setCode(v || '')}
               onMount={editor => { editorRef.current = editor; }}
               options={{
-                minimap: { enabled: false }, fontSize: 14, lineHeight: 22,
-                fontFamily: "'JetBrains Mono','Fira Code',monospace", fontLigatures: true,
-                scrollBeyondLastLine: false, padding: { top: 12, bottom: 12 },
+                minimap: { enabled: false }, fontSize: 13.5, lineHeight: 22,
+                fontFamily: 'var(--font-mono)', fontLigatures: true,
+                scrollBeyondLastLine: false, padding: { top: 14, bottom: 14 },
                 renderLineHighlight: 'gutter', glyphMargin: true,
                 readOnly: isPlaying, cursorBlinking: 'smooth',
+                lineNumbersMinChars: 3,
               }} />
-              
+
+            {/* Optimization Ready Toast */}
             {optimizationResult && !isOptimizerOpen && (
-              <div className="absolute bottom-3 left-3 right-3 bg-slate-900/95 border border-blue-500/40 rounded-xl p-3 z-10 flex items-center justify-between shadow-2xl backdrop-blur-md animate-fade-in">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                    <Zap size={14} />
+              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between p-3 rounded-xl cursor-pointer animate-slide-in-up"
+                style={{ background: 'rgba(12,16,34,0.96)', border: '1px solid rgba(59,130,246,0.4)', boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 16px rgba(59,130,246,0.1)', backdropFilter: 'blur(16px)' }}
+                onClick={() => setIsOptimizerOpen(true)}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.3), rgba(139,92,246,0.3))', border: '1px solid rgba(99,102,241,0.4)' }}>
+                    <Zap size={15} style={{ color: '#93c5fd' }} />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-white">
-                        {optimizationResult.interview_optimization?.technique || 'Zero Built-ins Optimization Ready'}
+                        {optimizationResult.interview_optimization?.technique || 'Interview-Ready Optimization'}
                       </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: 'rgba(34,197,94,0.15)', color: '#86efac', border: '1px solid rgba(34,197,94,0.3)' }}>
                         {optimizationResult.interview_optimization?.time_complexity || 'O(N)'}
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-400">Strictly no sorted(), sum(), max(), min(), set()</span>
+                    <span className="text-[11px]" style={{ color: 'rgba(148,163,184,0.6)' }}>
+                      Zero built-ins · Click to view full analysis
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsOptimizerOpen(true)}
-                    className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg shadow-md shadow-blue-500/20 transition-colors cursor-pointer"
-                  >
-                    View Interview Solution
-                  </button>
-                  <button
-                    onClick={() => setOptimizationResult(null)}
-                    className="text-slate-500 hover:text-slate-300 text-xs p-1 cursor-pointer"
-                  >
-                    ✕
-                  </button>
+                  <span className="text-[11px] font-semibold px-3 py-1.5 rounded-lg text-white"
+                    style={{ background: 'rgba(59,130,246,0.8)' }}>
+                    View Solution
+                  </span>
+                  <button onClick={e => { e.stopPropagation(); setOptimizationResult(null); }}
+                    className="text-xs p-1 rounded cursor-pointer"
+                    style={{ color: 'rgba(148,163,184,0.4)' }}>✕</button>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Connection Error */}
           {fetchError && (
-            <div className="px-4 py-2.5 bg-red-950/50 border-t border-red-500/25 shrink-0">
-              <div className="flex items-start gap-2 text-red-300 text-xs">
-                <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                <div><strong>Connection Error:</strong> {fetchError}<br /><span className="text-red-400/60">Start the Python backend: uvicorn main:app --reload (port 8000)</span></div>
+            <div className="px-4 py-3 shrink-0 flex items-start gap-2.5"
+              style={{ background: 'rgba(127,29,29,0.2)', borderTop: '1px solid rgba(239,68,68,0.2)' }}>
+              <AlertTriangle size={13} className="mt-0.5 shrink-0" style={{ color: '#f87171' }} />
+              <div className="text-xs" style={{ color: '#fca5a5' }}>
+                <strong>Backend Offline:</strong> {fetchError}
+                <span className="block mt-0.5" style={{ color: 'rgba(252,165,165,0.5)' }}>
+                  Start with: <code style={{ fontFamily: 'var(--font-mono)' }}>uvicorn main:app --reload</code> (port 8000)
+                </span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Trace pane */}
-        <div className="flex flex-col min-h-0" style={{ width: '45%' }}>
+        {/* ── RIGHT: Trace Pane ────────────────────────────────────────────── */}
+        <div className="flex flex-col min-h-0" style={{ width: '45%', background: 'rgba(9,13,25,0.5)' }}>
 
-          {/* Step info bar */}
+          {/* ── Step Info Bar ─── */}
           {hasRun && activeStep ? (
-            <div className="flex flex-col shrink-0">
-              <div className={`px-4 py-2.5 border-b border-l-2 ${es.bg} ${es.text.replace('text-','border-')} flex items-center justify-between`}>
+            <div className="shrink-0">
+              {/* Step Header */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-l-4"
+                style={{
+                  background: es.bg.includes('blue') ? 'rgba(59,130,246,0.07)' : es.bg.includes('emerald') ? 'rgba(16,185,129,0.07)' : 'rgba(139,92,246,0.07)',
+                  borderBottomColor: 'var(--border-subtle)',
+                  borderLeftColor: es.bg.includes('blue') ? '#3b82f6' : es.bg.includes('emerald') ? '#10b981' : '#8b5cf6',
+                }}>
                 <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full border ${es.bg} ${es.text}`}>{es.label}</span>
-                  <span className="text-xs text-slate-400">Line <span className={`font-mono font-bold ${es.text}`}>{activeStep.line}</span></span>
-                  <span className="text-slate-700 text-xs">•</span>
-                  <span className="text-xs text-slate-400">Step <span className="font-mono font-bold text-slate-200">{currentStep + 1}</span>/<span className="font-mono text-slate-400">{steps.length}</span></span>
+                  <span className="text-[10px] font-extrabold tracking-widest px-2.5 py-1 rounded-full uppercase"
+                    style={{
+                      background: es.bg.includes('blue') ? 'rgba(59,130,246,0.2)' : es.bg.includes('emerald') ? 'rgba(16,185,129,0.2)' : 'rgba(139,92,246,0.2)',
+                      color: es.bg.includes('blue') ? '#93c5fd' : es.bg.includes('emerald') ? '#6ee7b7' : '#c4b5fd',
+                      border: `1px solid ${es.bg.includes('blue') ? 'rgba(59,130,246,0.4)' : es.bg.includes('emerald') ? 'rgba(16,185,129,0.4)' : 'rgba(139,92,246,0.4)'}`,
+                    }}>
+                    {es.label}
+                  </span>
+                  <span className="text-xs" style={{ color: 'rgba(148,163,184,0.7)' }}>
+                    Line <span className="font-mono font-bold" style={{ color: '#e2e8f0' }}>{activeStep.line}</span>
+                  </span>
+                  <span style={{ color: 'rgba(148,163,184,0.3)' }}>·</span>
+                  <span className="text-xs" style={{ color: 'rgba(148,163,184,0.7)' }}>
+                    Step <span className="font-mono font-bold" style={{ color: '#e2e8f0' }}>{currentStep + 1}</span>
+                    <span style={{ color: 'rgba(148,163,184,0.4)' }}>/{steps.length}</span>
+                  </span>
                 </div>
-                <div className={`flex items-center gap-1.5 ${es.text} text-xs`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${es.dot} animate-pulse`} />
-                  {activeStep.event === 'call' ? 'Function called' : activeStep.event === 'return' ? 'Returning' : 'Executing'}
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse"
+                    style={{ background: es.bg.includes('blue') ? '#3b82f6' : es.bg.includes('emerald') ? '#10b981' : '#8b5cf6' }} />
+                  <span className="text-xs" style={{ color: 'rgba(148,163,184,0.55)' }}>
+                    {activeStep.event === 'call' ? 'Function called' : activeStep.event === 'return' ? 'Returning' : 'Executing'}
+                  </span>
                   {getApiKey() && (
-                    <button onClick={() => handleExplainStep(currentStep)} disabled={isExplainingStep} className="ml-3 flex items-center gap-1 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 px-2 py-0.5 rounded border border-violet-500/30 transition-colors cursor-pointer">
-                      <Sparkles size={11} /> {stepExplanations[currentStep] ? 'Explained' : 'Explain Step'}
+                    <button onClick={() => handleExplainStep(currentStep)} disabled={isExplainingStep}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold cursor-pointer transition-all duration-150 border ml-2"
+                      style={{ background: 'rgba(139,92,246,0.12)', borderColor: 'rgba(139,92,246,0.3)', color: '#c4b5fd' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.22)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(139,92,246,0.12)'}>
+                      <Sparkles size={10} />
+                      <span>{stepExplanations[currentStep] ? '✓ Explained' : 'Explain'}</span>
                     </button>
                   )}
                 </div>
               </div>
+
+              {/* Step Explanation */}
               {stepExplanations[currentStep] && (
-                <div className="px-4 py-2 bg-violet-900/10 border-b border-violet-500/20">
-                  <p className="text-xs text-violet-200 leading-relaxed"><strong className="text-violet-400">AI Tutor:</strong> {stepExplanations[currentStep]}</p>
+                <div className="px-4 py-2.5 border-b animate-fade-in"
+                  style={{ background: 'rgba(139,92,246,0.06)', borderColor: 'rgba(139,92,246,0.2)' }}>
+                  <p className="text-xs leading-relaxed">
+                    <strong style={{ color: '#a78bfa' }}>✦ AI Tutor: </strong>
+                    <span style={{ color: 'rgba(221,214,254,0.9)' }}>{stepExplanations[currentStep]}</span>
+                  </p>
                 </div>
               )}
               {isExplainingStep && !stepExplanations[currentStep] && (
-                <div className="px-4 py-2 bg-violet-900/10 border-b border-violet-500/20 flex items-center gap-2">
-                  <Loader2 size={12} className="animate-spin text-violet-400" />
-                  <span className="text-xs text-violet-300">Generating explanation...</span>
+                <div className="px-4 py-2.5 border-b flex items-center gap-2"
+                  style={{ background: 'rgba(139,92,246,0.06)', borderColor: 'rgba(139,92,246,0.2)' }}>
+                  <Loader2 size={11} className="animate-spin" style={{ color: '#a78bfa' }} />
+                  <span className="text-xs" style={{ color: 'rgba(196,181,253,0.7)' }}>Generating explanation…</span>
                 </div>
               )}
             </div>
           ) : !hasRun ? (
-            <div className="shrink-0 px-4 py-6 border-b border-slate-800/50 flex flex-col items-center justify-center gap-2 text-center">
-              <FlaskConical size={30} className="text-slate-700" />
-              <p className="text-sm text-slate-500 font-medium">Run your code to start tracing</p>
-              <p className="text-xs text-slate-600">Select an example or write Python code, then click <strong className="text-blue-400">Run Trace</strong></p>
+            /* ── Empty State: Onboarding ─── */
+            <div className="shrink-0 px-5 py-5 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+              <div className="text-center mb-4">
+                <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center animate-float"
+                  style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2))', border: '1px solid rgba(99,102,241,0.3)' }}>
+                  <Rocket size={22} style={{ color: '#93c5fd' }} />
+                </div>
+                <h2 className="text-sm font-bold text-white mb-1">Ready to Trace</h2>
+                <p className="text-xs" style={{ color: 'rgba(148,163,184,0.55)' }}>
+                  Pick an algorithm above, then hit <span className="font-bold" style={{ color: '#93c5fd' }}>Run Trace</span>
+                </p>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { icon: '🔍', text: 'Every line & function call captured step-by-step' },
+                  { icon: '📊', text: 'Variable state visualized at each execution point' },
+                  { icon: '🤖', text: 'AI explains complexity, errors & each step in plain English' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg"
+                    style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border-subtle)' }}>
+                    <span className="text-base">{item.icon}</span>
+                    <span className="text-xs" style={{ color: 'rgba(148,163,184,0.65)' }}>{item.text}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : null}
 
-          {/* AI Explanation Banner */}
+          {/* ── AI Complexity Banner ─── */}
           {hasRun && (
-            <div className="border-b border-violet-500/30 shrink-0">
+            <div className="shrink-0 border-b" style={{ borderColor: 'rgba(139,92,246,0.2)' }}>
               {complexityLoading ? (
-                <div className="bg-violet-900/30 px-4 py-3 flex items-center gap-2">
-                  <Loader2 size={13} className="animate-spin text-violet-400 shrink-0" />
-                  <span className="text-xs text-violet-300">AI is analyzing your code…</span>
+                <div className="px-4 py-3 flex items-center gap-3" style={{ background: 'rgba(139,92,246,0.05)' }}>
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.2)' }}>
+                    <Loader2 size={13} className="animate-spin" style={{ color: '#a78bfa' }} />
+                  </div>
+                  <span className="text-xs font-medium" style={{ color: 'rgba(196,181,253,0.7)' }}>
+                    AI analyzing time & space complexity…
+                  </span>
                 </div>
               ) : complexity?.summary ? (
-                <div className="bg-violet-900/40 px-4 py-3">
-                  <div className="flex items-start gap-2">
-                    <Zap size={14} className="text-violet-400 mt-0.5 shrink-0" />
+                <div className="px-4 py-3 animate-fade-in" style={{ background: 'rgba(139,92,246,0.07)' }}>
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center mt-0.5 shrink-0"
+                      style={{ background: 'rgba(139,92,246,0.25)' }}>
+                      <Zap size={12} style={{ color: '#a78bfa' }} />
+                    </div>
                     <div>
-                      <h3 className="text-xs font-bold text-violet-300 uppercase tracking-wider mb-1">AI Code Explanation</h3>
-                      <p className="text-sm text-violet-100 leading-relaxed">{complexity.summary}</p>
+                      <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#8b5cf6' }}>AI Analysis</span>
+                      <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'rgba(221,214,254,0.85)' }}>
+                        {complexity.summary}
+                      </p>
                     </div>
                   </div>
-                </div>
-              ) : !getApiKey() ? (
-                <div className="bg-slate-900/40 px-4 py-2.5 flex items-center gap-2">
-                  <Zap size={12} className="text-slate-600 shrink-0" />
-                  <span className="text-[11px] text-slate-600">AI analysis disabled — set <code className="text-slate-500 bg-slate-800/60 px-1 rounded">VITE_GROQ_API_KEY</code> to enable complexity insights</span>
                 </div>
               ) : null}
             </div>
           )}
 
-          {/* Status banners */}
-          {hasRun && <StatusBanner 
-            error={traceError} truncated={truncated} timedOut={timedOut} 
-            isAnalyzing={isAnalyzingError} analysisResult={errorAnalysis} 
-            onAnalyze={getApiKey() ? handleAnalyzeError : undefined} 
-            onApplyFix={(fixedCode) => {
-              setCode(fixedCode);
-              setErrorAnalysis(null);
-              handleRun(fixedCode);
-            }}
-          />}
-
-          {/* Tabs */}
+          {/* ── Status Banners ─── */}
           {hasRun && (
-            <div className="flex border-b border-slate-800/60 shrink-0 bg-slate-900/20">
-              {[{ id: 'variables', label: 'Variables', icon: Braces }, { id: 'timeline', label: 'Timeline', icon: Activity }].map(tab => (
+            <StatusBanner
+              error={traceError} truncated={truncated} timedOut={timedOut}
+              isAnalyzing={isAnalyzingError} analysisResult={errorAnalysis}
+              onAnalyze={getApiKey() ? handleAnalyzeError : undefined}
+              onApplyFix={(fixedCode) => { setCode(fixedCode); setErrorAnalysis(null); handleRun(fixedCode); }}
+            />
+          )}
+
+          {/* ── Tab Bar ─── */}
+          {hasRun && (
+            <div className="flex shrink-0 border-b" style={{ background: 'rgba(9,13,25,0.6)', borderColor: 'var(--border-subtle)' }}>
+              {[
+                { id: 'variables', label: 'Variables', icon: Braces },
+                { id: 'timeline', label: 'Timeline', icon: Activity }
+              ].map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium border-b-2 cursor-pointer transition-all duration-150 ${activeTab === tab.id ? 'border-blue-500 text-blue-300 bg-blue-500/5' : 'border-transparent text-slate-500 hover:text-slate-200 hover:bg-white/4'}`}>
+                  className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 cursor-pointer transition-all duration-150"
+                  style={activeTab === tab.id ? {
+                    borderColor: '#6366f1', color: '#a5b4fc', background: 'rgba(99,102,241,0.06)'
+                  } : {
+                    borderColor: 'transparent', color: 'rgba(148,163,184,0.5)', background: 'transparent'
+                  }}>
                   <tab.icon size={12} />
                   {tab.label}
-                  {tab.id === 'timeline' && <span className="ml-1 bg-slate-700/70 text-slate-400 text-[10px] px-1.5 py-0.5 rounded-full font-mono">{steps.length}</span>}
+                  {tab.id === 'timeline' && (
+                    <span className="ml-1 font-mono text-[10px] px-1.5 py-0.5 rounded-full"
+                      style={{ background: 'rgba(148,163,184,0.12)', color: 'rgba(148,163,184,0.55)' }}>
+                      {steps.length}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
           )}
 
-          {/* Tab content */}
-          <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-3" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(100,116,139,0.3) transparent' }}>
+          {/* ── Scrollable Content Area ─── */}
+          <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3">
 
-            {/* Before run: info panels */}
+            {/* Before run: sandbox info */}
             {!hasRun && (
               <div className="space-y-3">
-                <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
-                  <div className="flex items-center gap-2 mb-3"><Terminal size={13} className="text-blue-400" /><span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">Sandbox Built-ins</span></div>
-                  <p className="text-xs text-slate-500 mb-2">Code runs in a sandboxed environment with these safe built-ins:</p>
+                <div className="p-4 rounded-xl" style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid var(--border-muted)' }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Terminal size={13} style={{ color: '#60a5fa' }} />
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#60a5fa' }}>Sandbox Built-ins</span>
+                  </div>
+                  <p className="text-xs mb-2.5" style={{ color: 'rgba(148,163,184,0.5)' }}>
+                    Code runs safely in an isolated Python sandbox:
+                  </p>
                   <div className="flex flex-wrap gap-1">
                     {['abs','all','any','bool','chr','dict','divmod','enumerate','filter','float','frozenset','int','isinstance','len','list','map','max','min','ord','pow','print','range','repr','reversed','round','set','sorted','str','sum','tuple','zip','type'].map(b => (
-                      <code key={b} className="text-[10px] bg-slate-800/80 text-emerald-300 px-1.5 py-0.5 rounded border border-slate-700/50">{b}</code>
+                      <code key={b} className="text-[10px] px-1.5 py-0.5 rounded font-mono"
+                        style={{ background: 'rgba(34,197,94,0.08)', color: '#86efac', border: '1px solid rgba(34,197,94,0.15)' }}>
+                        {b}
+                      </code>
                     ))}
                   </div>
                 </div>
-                <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
-                  <div className="flex items-center gap-2 mb-2"><Info size={13} className="text-violet-400" /><span className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Trace Features</span></div>
-                  <ul className="text-xs text-slate-500 space-y-1.5">
-                    {['Every line, call, and return is captured as a step','Variable state is snapshotted at each step','Max 50 steps prevents infinite loops','5-second wall-clock timeout','AI complexity analysis & AlgoTutor copilot (needs VITE_GROQ_API_KEY)'].map((t, i) => (
-                      <li key={i} className="flex items-start gap-2"><span className="text-blue-500 shrink-0">•</span>{t}</li>
+
+                <div className="p-4 rounded-xl" style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid var(--border-muted)' }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <GraduationCap size={13} style={{ color: '#a78bfa' }} />
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#a78bfa' }}>AI Features</span>
+                  </div>
+                  <ul className="space-y-2">
+                    {[
+                      ['⚡', 'Optimize code for interviews (no built-in functions)'],
+                      ['🎯', 'Generate algorithmic stress-test edge cases'],
+                      ['🤖', 'Ask AlgoTutor — context-aware AI copilot'],
+                      ['✦', 'Step-by-step AI explanations of variable changes'],
+                      ['🔍', 'Crash analyzer with auto-fix suggestions'],
+                    ].map(([icon, text], i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-xs" style={{ color: 'rgba(148,163,184,0.6)' }}>
+                        <span className="shrink-0 mt-0.5">{icon}</span>
+                        <span>{text}</span>
+                      </li>
                     ))}
                   </ul>
                 </div>
               </div>
             )}
 
-            {/* Variables tab */}
+            {/* Variables Tab */}
             {hasRun && activeTab === 'variables' && (
               <>
                 {activeStep?.variables?.arr !== undefined ? (
                   <ArrayVisualizer arr={activeStep.variables.arr} vars={activeStep.variables} />
                 ) : activeStep?.variables?.series !== undefined && Array.isArray(activeStep.variables.series) ? (
-                  <div className="bg-slate-900/60 rounded-xl border border-slate-700/50 p-4">
+                  <div className="rounded-xl p-4" style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid var(--border-muted)' }}>
                     <div className="flex items-center gap-2 mb-3">
-                      <List size={13} className="text-amber-400" />
-                      <span className="text-xs font-semibold text-amber-300 uppercase tracking-wider">Fibonacci Series</span>
-                      <span className="ml-1 text-xs text-slate-600">series[{activeStep.variables.series.length}]</span>
+                      <List size={13} style={{ color: '#fbbf24' }} />
+                      <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#fbbf24' }}>Fibonacci Series</span>
+                      <span className="text-xs font-mono ml-1" style={{ color: 'rgba(148,163,184,0.4)' }}>
+                        [{activeStep.variables.series.length}]
+                      </span>
                     </div>
                     <div className="flex flex-wrap gap-2 justify-center">
                       {activeStep.variables.series.map((val, idx) => (
-                        <div key={idx} className="flex flex-col items-center gap-0.5">
-                          <div className="w-11 h-11 flex items-center justify-center text-sm font-bold rounded-lg border-2 bg-amber-900/40 border-amber-500/60 text-amber-100 shadow-lg shadow-amber-500/20 transition-all duration-300">{val}</div>
-                          <span className="text-[10px] font-mono text-slate-600">{idx}</span>
+                        <div key={idx} className="flex flex-col items-center gap-1">
+                          <div className="w-11 h-11 flex items-center justify-center text-sm font-bold rounded-xl border-2 transition-all duration-300"
+                            style={{ background: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.5)', color: '#fef3c7', boxShadow: '0 4px 12px rgba(245,158,11,0.1)' }}>
+                            {val}
+                          </div>
+                          <span className="text-[9px] font-mono" style={{ color: 'rgba(148,163,184,0.4)' }}>{idx}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 ) : null}
+
                 <ScalarVisualizer vars={activeStep?.variables} />
-                <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 overflow-hidden">
-                  <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800/50">
-                    <Braces size={12} className="text-slate-500" />
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Local Variables</span>
-                    <span className="ml-auto text-xs text-slate-600 font-mono">{Object.keys(activeStep?.variables || {}).length} vars</span>
+
+                {/* Variables Table */}
+                <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid var(--border-muted)' }}>
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <div className="flex items-center gap-2">
+                      <Braces size={12} style={{ color: 'rgba(148,163,184,0.4)' }} />
+                      <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(148,163,184,0.5)' }}>
+                        Local Variables
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgba(148,163,184,0.08)', color: 'rgba(148,163,184,0.4)', border: '1px solid var(--border-subtle)' }}>
+                      {Object.keys(activeStep?.variables || {}).length} vars
+                    </span>
                   </div>
                   {activeStep && Object.keys(activeStep.variables || {}).length > 0 ? (
-                    <div className="divide-y divide-slate-800/30">
+                    <div>
                       {Object.entries(activeStep.variables).map(([n, v]) => (
                         <VariableRow key={n} name={n} val={v} prevVal={prevStep?.variables?.[n]} />
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-600 text-center py-6">No local variables in scope</p>
+                    <p className="text-xs text-center py-6" style={{ color: 'rgba(148,163,184,0.3)' }}>
+                      No local variables in scope
+                    </p>
                   )}
                 </div>
 
-                {/* Complexity */}
-                <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+                {/* Complexity Cards */}
+                <div className="rounded-xl p-4" style={{ background: 'rgba(17,24,39,0.7)', border: '1px solid var(--border-muted)' }}>
                   <div className="flex items-center gap-2 mb-3">
-                    <Cpu size={13} className="text-blue-400" />
-                    <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">Time &amp; Space Complexity</span>
-                    {complexityLoading && <Loader2 size={11} className="animate-spin text-blue-400 ml-1" />}
+                    <Cpu size={13} style={{ color: '#60a5fa' }} />
+                    <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#60a5fa' }}>
+                      Time & Space Complexity
+                    </span>
+                    {complexityLoading && <Loader2 size={11} className="animate-spin ml-1" style={{ color: '#60a5fa' }} />}
                   </div>
                   {complexityLoading ? (
                     <div className="flex gap-2">
                       {['Time', 'Space'].map(label => (
-                        <div key={label} className="flex-1 bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/30 animate-pulse">
-                          <div className="text-[10px] text-slate-600 uppercase tracking-wider mb-1">{label}</div>
-                          <div className="h-5 w-16 bg-slate-700/60 rounded" />
-                        </div>
+                        <div key={label} className="flex-1 rounded-xl px-3 py-3 skeleton" style={{ minHeight: '56px' }} />
                       ))}
                     </div>
                   ) : complexity ? (
-                    <div className="flex gap-2">
-                      <div className="flex-1 bg-slate-800/70 rounded-lg px-3 py-2 border border-slate-700/40">
-                        <div className="flex items-center gap-1 mb-1"><Cpu size={10} className="text-blue-400" /><span className="text-[10px] text-slate-500 uppercase tracking-wider">Time</span></div>
-                        <span className="font-mono text-sm font-bold text-blue-300">{complexity.time}</span>
+                    <div className="flex gap-3">
+                      <div className="flex-1 rounded-xl px-3 py-3 border"
+                        style={{ background: 'rgba(59,130,246,0.07)', borderColor: 'rgba(59,130,246,0.2)' }}>
+                        <div className="flex items-center gap-1 mb-1.5">
+                          <Cpu size={10} style={{ color: '#60a5fa' }} />
+                          <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'rgba(148,163,184,0.5)' }}>Time</span>
+                        </div>
+                        <span className="font-mono text-lg font-extrabold" style={{ color: '#93c5fd', fontFamily: 'var(--font-mono)' }}>
+                          {complexity.time}
+                        </span>
                       </div>
-                      <div className="flex-1 bg-slate-800/70 rounded-lg px-3 py-2 border border-slate-700/40">
-                        <div className="flex items-center gap-1 mb-1"><MemoryStick size={10} className="text-emerald-400" /><span className="text-[10px] text-slate-500 uppercase tracking-wider">Space</span></div>
-                        <span className="font-mono text-sm font-bold text-emerald-300">{complexity.space}</span>
+                      <div className="flex-1 rounded-xl px-3 py-3 border"
+                        style={{ background: 'rgba(34,197,94,0.07)', borderColor: 'rgba(34,197,94,0.2)' }}>
+                        <div className="flex items-center gap-1 mb-1.5">
+                          <MemoryStick size={10} style={{ color: '#4ade80' }} />
+                          <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: 'rgba(148,163,184,0.5)' }}>Space</span>
+                        </div>
+                        <span className="font-mono text-lg font-extrabold" style={{ color: '#86efac', fontFamily: 'var(--font-mono)' }}>
+                          {complexity.space}
+                        </span>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-600 text-center py-2">
-                      {getApiKey() ? 'Analysis unavailable' : 'Set VITE_GROQ_API_KEY to enable AI complexity analysis'}
+                    <p className="text-xs text-center py-3" style={{ color: 'rgba(148,163,184,0.3)' }}>
+                      {getApiKey() ? 'Analysis unavailable' : 'Set VITE_GROQ_API_KEY to enable'}
                     </p>
                   )}
                 </div>
               </>
             )}
 
-            {/* Timeline tab */}
+            {/* Timeline Tab */}
             {hasRun && activeTab === 'timeline' && (
               <div ref={timelineRef} className="space-y-0.5">
                 {steps.map((step, idx) => {
                   const se = EVENT_STYLES[step.event] || EVENT_STYLES.line;
                   const isCur = idx === currentStep;
-                  const varPreview = Object.entries(step.variables || {}).slice(0, 3).map(([k, v]) => `${k}=${Array.isArray(v) ? `[${v.length}]` : typeof v === 'object' && v ? '{…}' : v}`).join(', ');
+                  const varPreview = Object.entries(step.variables || {}).slice(0, 3)
+                    .map(([k, v]) => `${k}=${Array.isArray(v) ? `[${v.length}]` : typeof v === 'object' && v ? '{…}' : v}`)
+                    .join(', ');
+                  const dotColor = se.dot.includes('blue') ? '#3b82f6' : se.dot.includes('emerald') ? '#10b981' : '#8b5cf6';
                   return (
                     <button key={idx} data-step={idx} onClick={() => jumpTo(idx)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left border cursor-pointer transition-all duration-100 ${isCur ? `${se.bg} border-opacity-50` : 'border-transparent hover:bg-white/4'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${se.dot} ${isCur ? 'animate-pulse' : 'opacity-30'}`} />
-                      <span className={`text-[10px] font-bold font-mono w-12 shrink-0 ${isCur ? se.text : 'text-slate-700'}`}>{se.label}</span>
-                      <span className={`text-xs font-mono shrink-0 ${isCur ? 'text-slate-200' : 'text-slate-600'}`}>L{step.line}</span>
-                      <span className={`text-[10px] font-mono shrink-0 ml-auto ${isCur ? 'text-slate-400' : 'text-slate-700'}`}>#{step.step}</span>
-                      <span className="text-[10px] text-slate-700 truncate max-w-[120px]">{varPreview}</span>
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left cursor-pointer transition-all duration-100"
+                      style={isCur ? {
+                        background: `rgba(${se.bg.includes('blue') ? '59,130,246' : se.bg.includes('emerald') ? '16,185,129' : '139,92,246'},0.1)`,
+                        border: `1px solid rgba(${se.bg.includes('blue') ? '59,130,246' : se.bg.includes('emerald') ? '16,185,129' : '139,92,246'},0.3)`,
+                      } : {
+                        background: 'transparent',
+                        border: '1px solid transparent',
+                      }}
+                      onMouseEnter={e => { if (!isCur) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                      onMouseLeave={e => { if (!isCur) e.currentTarget.style.background = 'transparent'; }}>
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0 transition-all"
+                        style={{ background: dotColor, opacity: isCur ? 1 : 0.25 }} />
+                      <span className="text-[10px] font-bold font-mono w-14 shrink-0"
+                        style={{ color: isCur ? (se.text.includes('blue') ? '#93c5fd' : se.text.includes('emerald') ? '#6ee7b7' : '#c4b5fd') : 'rgba(148,163,184,0.3)', fontFamily: 'var(--font-mono)' }}>
+                        {se.label}
+                      </span>
+                      <span className="text-xs font-mono shrink-0"
+                        style={{ color: isCur ? '#e2e8f0' : 'rgba(148,163,184,0.3)', fontFamily: 'var(--font-mono)' }}>
+                        L{step.line}
+                      </span>
+                      <span className="text-[10px] font-mono ml-auto shrink-0"
+                        style={{ color: isCur ? 'rgba(148,163,184,0.6)' : 'rgba(148,163,184,0.2)', fontFamily: 'var(--font-mono)' }}>
+                        #{step.step}
+                      </span>
+                      <span className="text-[10px] truncate max-w-[110px]"
+                        style={{ color: isCur ? 'rgba(148,163,184,0.5)' : 'rgba(148,163,184,0.2)' }}>
+                        {varPreview}
+                      </span>
                     </button>
                   );
                 })}
@@ -688,41 +877,91 @@ export default function App() {
             )}
           </div>
 
-          {/* Playback controls */}
+          {/* ── Playback Controls ─── */}
           {hasRun && steps.length > 0 && (
-            <div className="shrink-0 border-t border-slate-800/60 bg-[#0b0f1e]/70 px-4 py-3">
-              {/* Scrubber */}
-              <div className="mb-2.5">
+            <div className="shrink-0 border-t px-4 py-3" style={{ borderColor: 'var(--border-subtle)', background: 'rgba(9,13,25,0.85)', backdropFilter: 'blur(8px)' }}>
+              {/* Progress Bar */}
+              <div className="mb-3">
+                <div className="flex justify-between text-[10px] font-mono mb-1.5" style={{ color: 'rgba(148,163,184,0.4)', fontFamily: 'var(--font-mono)' }}>
+                  <span>Step 1</span>
+                  <span style={{ color: '#a5b4fc', fontWeight: 700 }}>{currentStep + 1} / {steps.length}</span>
+                  <span>{steps.length}</span>
+                </div>
                 <input type="range" min={0} max={steps.length - 1} value={currentStep}
                   onChange={e => jumpTo(Number(e.target.value))}
-                  className="w-full h-1.5 rounded-full appearance-none bg-slate-700/80 cursor-pointer"
-                  style={{ accentColor: '#3b82f6' }} />
-                <div className="flex justify-between text-[10px] font-mono text-slate-700 mt-1">
-                  <span>1</span><span className="text-slate-400">{currentStep + 1} / {steps.length}</span><span>{steps.length}</span>
+                  className="w-full cursor-pointer" />
+                {/* Progress fill indicator */}
+                <div className="h-0.5 rounded-full mt-1 transition-all duration-150"
+                  style={{ background: 'rgba(99,102,241,0.2)', position: 'relative' }}>
+                  <div className="h-full rounded-full transition-all duration-150"
+                    style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)' }} />
                 </div>
               </div>
-              {/* Controls */}
+
+              {/* Controls Row */}
               <div className="flex items-center justify-between">
                 {/* Speed */}
                 <div className="flex gap-1">
                   {SPEEDS.map((s, i) => (
-                    <button key={i} onClick={() => setSpeedIdx(i)} className={`text-[10px] font-mono px-2 py-1 rounded border cursor-pointer transition-all ${speedIdx === i ? 'bg-blue-600/25 border-blue-500/50 text-blue-300' : 'border-slate-700/50 text-slate-600 hover:text-slate-300'}`}>{s.label}</button>
+                    <button key={i} onClick={() => setSpeedIdx(i)}
+                      className="text-[10px] font-mono font-bold px-2 py-1 rounded-md border cursor-pointer transition-all duration-100"
+                      style={speedIdx === i ? {
+                        background: 'rgba(99,102,241,0.2)', borderColor: 'rgba(99,102,241,0.5)', color: '#a5b4fc'
+                      } : {
+                        background: 'transparent', borderColor: 'var(--border-muted)', color: 'rgba(148,163,184,0.4)'
+                      }}>
+                      {s.label}
+                    </button>
                   ))}
                 </div>
-                {/* Nav */}
-                <div className="flex items-center gap-1.5">
-                  <button id="first-btn" onClick={() => jumpTo(0)} disabled={currentStep === 0} title="First" className="text-slate-600 hover:text-slate-300 disabled:opacity-25 transition-colors cursor-pointer"><ChevronsLeft size={17} /></button>
-                  <button id="prev-btn" onClick={() => jumpTo(Math.max(0, currentStep - 1))} disabled={currentStep === 0} title="Previous" className="text-slate-500 hover:text-slate-200 disabled:opacity-25 transition-colors cursor-pointer"><SkipBack size={19} /></button>
-                  <button id="play-btn" onClick={() => setIsPlaying(p => !p)}
-                    className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 flex items-center justify-center shadow-lg shadow-blue-500/25 transition-all cursor-pointer">
-                    {isPlaying ? <Pause size={16} className="text-white" /> : <Play size={16} className="text-white ml-0.5" />}
+
+                {/* Nav Buttons */}
+                <div className="flex items-center gap-1">
+                  <button id="first-btn" onClick={() => jumpTo(0)} disabled={currentStep === 0} title="First"
+                    className="p-1.5 rounded-lg cursor-pointer transition-all disabled:opacity-25 disabled:cursor-not-allowed"
+                    style={{ color: 'rgba(148,163,184,0.5)' }}
+                    onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.color = '#e2e8f0'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(148,163,184,0.5)'; }}>
+                    <ChevronsLeft size={17} />
                   </button>
-                  <button id="next-btn" onClick={() => jumpTo(Math.min(steps.length - 1, currentStep + 1))} disabled={currentStep === steps.length - 1} title="Next" className="text-slate-500 hover:text-slate-200 disabled:opacity-25 transition-colors cursor-pointer"><SkipForward size={19} /></button>
-                  <button id="last-btn" onClick={() => jumpTo(steps.length - 1)} disabled={currentStep === steps.length - 1} title="Last" className="text-slate-600 hover:text-slate-300 disabled:opacity-25 transition-colors cursor-pointer"><ChevronsRight size={17} /></button>
+                  <button id="prev-btn" onClick={() => jumpTo(Math.max(0, currentStep - 1))} disabled={currentStep === 0} title="Previous"
+                    className="p-1.5 rounded-lg cursor-pointer transition-all disabled:opacity-25 disabled:cursor-not-allowed"
+                    style={{ color: 'rgba(148,163,184,0.6)' }}
+                    onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.color = '#e2e8f0'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(148,163,184,0.6)'; }}>
+                    <SkipBack size={19} />
+                  </button>
+                  <button id="play-btn" onClick={() => setIsPlaying(p => !p)}
+                    className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-all duration-150 animate-pulse-glow"
+                    style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 0 16px rgba(99,102,241,0.35)' }}>
+                    {isPlaying ? <Pause size={15} className="text-white" /> : <Play size={15} className="text-white ml-0.5" />}
+                  </button>
+                  <button id="next-btn" onClick={() => jumpTo(Math.min(steps.length - 1, currentStep + 1))} disabled={currentStep === steps.length - 1} title="Next"
+                    className="p-1.5 rounded-lg cursor-pointer transition-all disabled:opacity-25 disabled:cursor-not-allowed"
+                    style={{ color: 'rgba(148,163,184,0.6)' }}
+                    onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.color = '#e2e8f0'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(148,163,184,0.6)'; }}>
+                    <SkipForward size={19} />
+                  </button>
+                  <button id="last-btn" onClick={() => jumpTo(steps.length - 1)} disabled={currentStep === steps.length - 1} title="Last"
+                    className="p-1.5 rounded-lg cursor-pointer transition-all disabled:opacity-25 disabled:cursor-not-allowed"
+                    style={{ color: 'rgba(148,163,184,0.5)' }}
+                    onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.color = '#e2e8f0'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(148,163,184,0.5)'; }}>
+                    <ChevronsRight size={17} />
+                  </button>
                 </div>
-                <button id="reset-trace-btn" onClick={() => { setSteps([]); setHasRun(false); setCurrentStep(0); setIsPlaying(false); if (editorRef.current) decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, []); }}
-                  className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-300 border border-slate-700/40 hover:border-slate-600 px-2 py-1 rounded cursor-pointer transition-all">
-                  <RefreshCw size={10} />Reset
+
+                {/* Reset */}
+                <button id="reset-trace-btn" onClick={() => {
+                  setSteps([]); setHasRun(false); setCurrentStep(0); setIsPlaying(false);
+                  if (editorRef.current) decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, []);
+                }}
+                  className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer transition-all border"
+                  style={{ color: 'rgba(148,163,184,0.45)', borderColor: 'var(--border-subtle)', background: 'transparent' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#e2e8f0'; e.currentTarget.style.borderColor = 'var(--border-muted)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'rgba(148,163,184,0.45)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}>
+                  <RefreshCw size={10} /> Reset
                 </button>
               </div>
             </div>
@@ -730,7 +969,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Feature 2: AI Code Optimizer Modal (Interview Mode: Zero Built-ins) */}
+      {/* ── Modals & Drawers ──────────────────────────────────────────────── */}
+
       <OptimizerModal
         isOpen={isOptimizerOpen}
         onClose={() => setIsOptimizerOpen(false)}
@@ -740,7 +980,6 @@ export default function App() {
         onReoptimize={() => handleOptimizeCode(true)}
       />
 
-      {/* Feature 3: AI Edge Case & Stress-Test Generator Modal */}
       <EdgeCaseModal
         isOpen={isEdgeCaseOpen}
         onClose={() => setIsEdgeCaseOpen(false)}
@@ -750,7 +989,6 @@ export default function App() {
         onApplyCase={handleApplyEdgeCase}
       />
 
-      {/* Feature 4: Interactive AlgoTutor Copilot Drawer */}
       <AlgoTutorDrawer
         isOpen={isTutorOpen}
         onClose={() => setIsTutorOpen(false)}
@@ -763,13 +1001,6 @@ export default function App() {
         activeStep={activeStep}
         hasRun={hasRun}
       />
-
-      {/* Inline styles for Monaco + scrollbar */}
-      <style>{`
-        .at-active-line { background: rgba(99,102,241,0.12) !important; border-left: 2px solid rgb(99,102,241) !important; }
-        .at-active-glyph { background: radial-gradient(circle, rgb(99,102,241) 3px, transparent 3px) center no-repeat; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:13px; height:13px; border-radius:50%; background:#3b82f6; cursor:pointer; box-shadow:0 0 6px rgba(59,130,246,0.4); }
-      `}</style>
     </div>
   );
 }
