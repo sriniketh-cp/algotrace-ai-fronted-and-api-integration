@@ -13,6 +13,7 @@ import { ArrayVisualizer, ScalarVisualizer, VariableRow, ValueDisplay, TypeBadge
 import { StatusBanner } from './components/StatusBanner';
 import { EdgeCaseModal } from './components/EdgeCaseModal';
 import { AlgoTutorDrawer } from './components/AlgoTutorDrawer';
+import { OptimizerModal } from './components/OptimizerModal';
 import {
   generateEdgeCases, askAlgoTutor, analyzeComplexity,
   optimizeCode, explainStep, analyzeCrash, getApiKey
@@ -40,6 +41,7 @@ export default function App() {
   const [isExplainingStep, setIsExplainingStep] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState(null);
+  const [isOptimizerOpen, setIsOptimizerOpen] = useState(false);
   const [isAnalyzingError, setIsAnalyzingError] = useState(false);
   const [errorAnalysis, setErrorAnalysis] = useState(null);
 
@@ -139,10 +141,12 @@ export default function App() {
 
   const jumpTo = (idx) => { setCurrentStep(idx); setIsPlaying(false); };
 
-  const handleOptimizeCode = async () => {
+  const handleOptimizeCode = async (force = false) => {
     if (!getApiKey() || !code.trim()) return;
+    setIsOptimizerOpen(true);
+    if (optimizationResult && !force) return;
+
     setIsOptimizing(true);
-    setOptimizationResult(null);
     try {
       const res = await optimizeCode(code);
       setOptimizationResult(res);
@@ -151,6 +155,13 @@ export default function App() {
     } finally {
       setIsOptimizing(false);
     }
+  };
+
+  const handleApplyOptimizedCode = (optimizedCode) => {
+    setCode(optimizedCode);
+    setOptimizationResult(null);
+    setIsOptimizerOpen(false);
+    handleRun(optimizedCode);
   };
 
   const handleExplainStep = async (stepIdx) => {
@@ -303,6 +314,21 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Feature 2: Optimizer Button */}
+          {getApiKey() && (
+            <button
+              onClick={() => handleOptimizeCode()}
+              title="AI Code Optimizer (Interview Mode: Zero Built-ins)"
+              className="flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:border-blue-500/50 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-150"
+            >
+              <Zap size={13} className="text-blue-400" />
+              <span>Optimize</span>
+              <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                Zero Built-ins
+              </span>
+            </button>
+          )}
+
           {/* Feature 3: Edge Case Button */}
           {getApiKey() && (
             <button
@@ -366,8 +392,8 @@ export default function App() {
             <div className="flex items-center gap-2">
               {getApiKey() && (
                 <>
-                  <button onClick={handleOptimizeCode} disabled={isOptimizing} className="flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-2.5 py-1 rounded-md border border-blue-500/30 transition-colors cursor-pointer text-[10px] font-bold">
-                    {isOptimizing ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />} Optimize
+                  <button onClick={() => handleOptimizeCode()} className="flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-2.5 py-1 rounded-md border border-blue-500/30 transition-colors cursor-pointer text-[10px] font-bold">
+                    {isOptimizing ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />} Optimize (No Built-ins)
                   </button>
                   <button onClick={() => { setIsEdgeCaseOpen(true); if (edgeCases.length === 0) handleGenerateEdgeCases(); }} className="flex items-center gap-1 bg-amber-600/15 hover:bg-amber-600/30 text-amber-300 px-2.5 py-1 rounded-md border border-amber-500/30 transition-colors cursor-pointer text-[10px] font-bold">
                     <Target size={11} /> Stress Tests
@@ -397,25 +423,36 @@ export default function App() {
                 readOnly: isPlaying, cursorBlinking: 'smooth',
               }} />
               
-            {optimizationResult && (
-              <div className="absolute bottom-4 left-4 right-4 bg-slate-900 border border-blue-500/50 rounded-xl shadow-2xl p-4 z-10">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2 text-blue-400">
+            {optimizationResult && !isOptimizerOpen && (
+              <div className="absolute bottom-3 left-3 right-3 bg-slate-900/95 border border-blue-500/40 rounded-xl p-3 z-10 flex items-center justify-between shadow-2xl backdrop-blur-md animate-fade-in">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
                     <Zap size={14} />
-                    <span className="text-xs font-bold uppercase tracking-wider">AI Optimization Ready</span>
                   </div>
-                  <button onClick={() => setOptimizationResult(null)} className="text-slate-500 hover:text-slate-300">
-                    <span className="text-xs">✕</span>
-                  </button>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white">
+                        {optimizationResult.interview_optimization?.technique || 'Zero Built-ins Optimization Ready'}
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                        {optimizationResult.interview_optimization?.time_complexity || 'O(N)'}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400">Strictly no sorted(), sum(), max(), min(), set()</span>
+                  </div>
                 </div>
-                <p className="text-sm text-slate-300 mb-4">{optimizationResult.rationale}</p>
-                <div className="flex gap-2">
-                  <button onClick={() => {
-                    setCode(optimizationResult.optimized_code);
-                    setOptimizationResult(null);
-                    handleRun(optimizationResult.optimized_code);
-                  }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-lg shadow-blue-500/20">
-                    Load & Run Trace
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsOptimizerOpen(true)}
+                    className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg shadow-md shadow-blue-500/20 transition-colors cursor-pointer"
+                  >
+                    View Interview Solution
+                  </button>
+                  <button
+                    onClick={() => setOptimizationResult(null)}
+                    className="text-slate-500 hover:text-slate-300 text-xs p-1 cursor-pointer"
+                  >
+                    ✕
                   </button>
                 </div>
               </div>
@@ -692,6 +729,16 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {/* Feature 2: AI Code Optimizer Modal (Interview Mode: Zero Built-ins) */}
+      <OptimizerModal
+        isOpen={isOptimizerOpen}
+        onClose={() => setIsOptimizerOpen(false)}
+        isLoading={isOptimizing}
+        optimizationResult={optimizationResult}
+        onApplyCode={handleApplyOptimizedCode}
+        onReoptimize={() => handleOptimizeCode(true)}
+      />
 
       {/* Feature 3: AI Edge Case & Stress-Test Generator Modal */}
       <EdgeCaseModal

@@ -183,24 +183,70 @@ Return ONLY valid JSON: {"time": "O(...)", "space": "O(...)", "summary": "One se
 
 /**
  * AI Code Optimizer
+ * Produces two optimizations:
+ * 1. Interview & Exam Mode (Strictly ZERO built-in functions like sorted(), sum(), max(), min(), set(), etc.)
+ * 2. Standard Pythonic Mode
  */
 export async function optimizeCode(code) {
-  const prompt = `Analyze this Python code. Identify performance bottlenecks or algorithm inefficiencies.
-Return an optimized version of the code and a short 1-2 sentence rationale explaining the optimization.
-Do not wrap the code in markdown blocks in the json string.
-
-Code:
+  const prompt = `You are a Senior Technical Interviewer at Google and a University Computer Science Professor.
+Analyze this Python code for algorithmic efficiency (Time & Space Complexity bottlenecks):
+\`\`\`python
 ${code}
+\`\`\`
 
-Return ONLY valid JSON: {"optimized_code": "...", "rationale": "..."}`;
+Provide TWO distinct optimizations:
+
+1. "interview_optimization":
+- STRICT PROFESSOR / INTERVIEWER RULE: In technical interviews and exams, students are FORBIDDEN from using high-level Python built-in functions!
+- DO NOT USE: sorted(), .sort(), sum(), max(), min(), set(), reverse(), reversed(), .index(), .count(), map(), filter(), reduce(), or any library functions.
+- YOU MUST USE: Pure fundamental Computer Science logic — manual loops (for, while), two pointers, sliding window, in-place swaps, Kadane's dynamic loops, binary search, or manual counter arrays/hash updates.
+- ZERO IMPORTS: Do NOT include ANY 'import' statements (no import sys, math, collections, etc.). The execution sandbox blocks all imports.
+- Must be COMPLETE, RUNNABLE Python code with sample inputs ready to execute.
+
+2. "pythonic_optimization":
+- Standard idiomatic Python optimization.
+- ZERO IMPORTS: Do NOT include ANY 'import' statements.
+- Must be COMPLETE, RUNNABLE Python code with sample inputs.
+
+Return ONLY valid JSON matching this exact structure:
+{
+  "interview_optimization": {
+    "technique": "Name of algorithm/technique (e.g. Two-Pointer In-Place Traversal)",
+    "time_complexity": "O(...)",
+    "space_complexity": "O(...)",
+    "time_reduction": "e.g. O(N²) → O(N)",
+    "space_reduction": "e.g. O(N) → O(1) in-place",
+    "rationale": "1-2 sentences explaining how the manual algorithm reduces complexity.",
+    "interviewer_focus": "Why professors and interviewers test this from-scratch method (e.g. tests loop invariants, boundary checks, zero extra allocation).",
+    "code": "COMPLETE RUNNABLE Python code (NO imports, NO sorted/sum/max/min/set/reverse)"
+  },
+  "pythonic_optimization": {
+    "technique": "e.g. Pythonic Dictionary / Comprehension",
+    "time_complexity": "O(...)",
+    "space_complexity": "O(...)",
+    "time_reduction": "e.g. O(N²) → O(N)",
+    "space_reduction": "e.g. O(N)",
+    "rationale": "1-2 sentences explaining the Pythonic solution.",
+    "code": "COMPLETE RUNNABLE Python code (NO imports)"
+  }
+}`;
 
   const content = await callGroq({
-    messages: [{ role: 'user', content: prompt }],
+    messages: [
+      { role: 'system', content: 'You are an expert algorithm judge and computer science professor that outputs strictly valid JSON.' },
+      { role: 'user', content: prompt }
+    ],
     jsonFormat: true,
     temperature: 0.2
   });
 
-  return JSON.parse(content);
+  const parsed = JSON.parse(content);
+  // Ensure backward compatibility for any component reading .optimized_code / .rationale
+  if (parsed.interview_optimization) {
+    parsed.optimized_code = parsed.interview_optimization.code;
+    parsed.rationale = parsed.interview_optimization.rationale;
+  }
+  return parsed;
 }
 
 /**
