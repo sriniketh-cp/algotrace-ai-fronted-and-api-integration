@@ -4,12 +4,19 @@ import {
   Play, Pause, SkipBack, SkipForward, ChevronsLeft, ChevronsRight,
   Loader2, Zap, AlertTriangle, Clock, Hash, ChevronRight, ChevronDown,
   Code2, Settings2, Activity, Terminal, Info, Cpu, MemoryStick, RefreshCw,
-  Braces, List, Type, ToggleLeft, Binary, BookOpen, FlaskConical, Sparkles
+  Braces, List, Type, ToggleLeft, Binary, BookOpen, FlaskConical, Sparkles,
+  Target, Bot, MessageSquare
 } from 'lucide-react';
 
 import { EXAMPLES, TYPE_STYLES, EVENT_STYLES, SPEEDS } from './utils/constants';
 import { ArrayVisualizer, ScalarVisualizer, VariableRow, ValueDisplay, TypeBadge } from './components/Visualizers';
 import { StatusBanner } from './components/StatusBanner';
+import { EdgeCaseModal } from './components/EdgeCaseModal';
+import { AlgoTutorDrawer } from './components/AlgoTutorDrawer';
+import {
+  generateEdgeCases, askAlgoTutor, analyzeComplexity,
+  optimizeCode, explainStep, analyzeCrash, getApiKey
+} from './services/aiService';
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -33,6 +40,19 @@ export default function App() {
   const [isExplainingStep, setIsExplainingStep] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState(null);
+  const [isAnalyzingError, setIsAnalyzingError] = useState(false);
+  const [errorAnalysis, setErrorAnalysis] = useState(null);
+
+  // AI Feature 3: Edge Case & Stress-Test Generator State
+  const [isEdgeCaseOpen, setIsEdgeCaseOpen] = useState(false);
+  const [edgeCases, setEdgeCases] = useState([]);
+  const [isGeneratingEdgeCases, setIsGeneratingEdgeCases] = useState(false);
+
+  // AI Feature 4: Interactive AlgoTutor Copilot State
+  const [isTutorOpen, setIsTutorOpen] = useState(false);
+  const [tutorMessages, setTutorMessages] = useState([]);
+  const [isTutorTyping, setIsTutorTyping] = useState(false);
+
   const editorRef = useRef(null);
   const decorationsRef = useRef([]);
   const timelineRef = useRef(null);
@@ -75,6 +95,7 @@ export default function App() {
     setIsPlaying(false);
     setFetchError(null);
     setTraceError(null);
+    setErrorAnalysis(null);
     setComplexity(null);
     setSteps([]);
     setCurrentStep(0);
@@ -98,25 +119,16 @@ export default function App() {
       setCurrentStep(0);
       setHasRun(true);
 
-      const KEY = import.meta.env.VITE_GROQ_API_KEY;
-      if (KEY) {
+      if (getApiKey()) {
         setComplexityLoading(true);
         try {
-          const lr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${KEY.replace(/^"|"$/g, '')}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: 'openai/gpt-oss-20b',
-              messages: [{ role: 'user', content: `Analyze this Python code:\n${codeToRun}\nReturn ONLY valid JSON: {"time": "O(...)", "space": "O(...)", "summary": "One sentence."}` }],
-              response_format: { type: 'json_object' },
-            }),
-          });
-          const ld = await lr.json();
-          if (!lr.ok) throw new Error(ld.error?.message || `Groq HTTP ${lr.status}`);
-          const content = ld.choices?.[0]?.message?.content;
-          if (content) setComplexity(JSON.parse(content));
-        } catch (e) { console.warn('AI failed:', e); }
-        finally { setComplexityLoading(false); }
+          const comp = await analyzeComplexity(codeToRun);
+          setComplexity(comp);
+        } catch (e) {
+          console.warn('AI complexity analysis failed:', e);
+        } finally {
+          setComplexityLoading(false);
+        }
       }
     } catch (err) {
       setFetchError(err.message);
@@ -128,38 +140,12 @@ export default function App() {
   const jumpTo = (idx) => { setCurrentStep(idx); setIsPlaying(false); };
 
   const handleOptimizeCode = async () => {
-    if (!import.meta.env.VITE_GROQ_API_KEY) return;
-    if (!code.trim()) return;
-    
+    if (!getApiKey() || !code.trim()) return;
     setIsOptimizing(true);
     setOptimizationResult(null);
     try {
-      const KEY = import.meta.env.VITE_GROQ_API_KEY.replace(/^"|"$/g, '');
-      const prompt = `Analyze this Python code. Identify performance bottlenecks or algorithm inefficiencies.
-Return an optimized version of the code and a short 1-2 sentence rationale explaining the optimization.
-Do not wrap the code in markdown blocks, just return raw string for the code in the json.
-
-Code:
-${code}
-
-Return ONLY valid JSON: {"optimized_code": "...", "rationale": "..."}`;
-
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'openai/gpt-oss-20b',
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "API Error");
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        const parsed = JSON.parse(content);
-        setOptimizationResult(parsed);
-      }
+      const res = await optimizeCode(code);
+      setOptimizationResult(res);
     } catch (e) {
       console.warn("Optimization failed", e);
     } finally {
@@ -168,7 +154,7 @@ Return ONLY valid JSON: {"optimized_code": "...", "rationale": "..."}`;
   };
 
   const handleExplainStep = async (stepIdx) => {
-    if (!import.meta.env.VITE_GROQ_API_KEY) return;
+    if (!getApiKey()) return;
     if (stepExplanations[stepIdx]) return; // already explained
 
     const curr = steps[stepIdx];
@@ -176,42 +162,92 @@ Return ONLY valid JSON: {"optimized_code": "...", "rationale": "..."}`;
     
     setIsExplainingStep(true);
     try {
-      const KEY = import.meta.env.VITE_GROQ_API_KEY.replace(/^"|"$/g, '');
-      const prevVars = prev ? JSON.stringify(prev.variables) : "None (start of execution)";
-      const currVars = JSON.stringify(curr.variables);
-      
-      const prompt = `Analyze this exact execution step in a Python program.
-Code:
-${code}
-
-Event: ${curr.event} at Line ${curr.line}
-Previous variables: ${prevVars}
-Current variables: ${currVars}
-
-Explain what just happened in 1-2 concise, educational sentences focusing on variable state changes.
-Return ONLY valid JSON: {"explanation": "..."}`;
-
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'openai/gpt-oss-20b',
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "API Error");
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        const parsed = JSON.parse(content);
-        setStepExplanations(prevExps => ({...prevExps, [stepIdx]: parsed.explanation}));
+      const res = await explainStep(code, curr, prev);
+      if (res?.explanation) {
+        setStepExplanations(prevExps => ({ ...prevExps, [stepIdx]: res.explanation }));
       }
     } catch (e) {
       console.warn("Step explanation failed", e);
     } finally {
       setIsExplainingStep(false);
     }
+  };
+
+  const handleAnalyzeError = async () => {
+    if (!getApiKey()) return;
+    if (!traceError || !code.trim()) return;
+    
+    setIsAnalyzingError(true);
+    setErrorAnalysis(null);
+    try {
+      const res = await analyzeCrash(code, traceError);
+      setErrorAnalysis(res);
+    } catch (e) {
+      console.warn("Error analysis failed", e);
+    } finally {
+      setIsAnalyzingError(false);
+    }
+  };
+
+  // ─── AI Feature 3: Edge Case & Stress-Test Generator Handlers ────────────────
+  const handleGenerateEdgeCases = async () => {
+    if (!code.trim() || !getApiKey()) return;
+    setIsGeneratingEdgeCases(true);
+    try {
+      const cases = await generateEdgeCases(code);
+      setEdgeCases(cases);
+    } catch (err) {
+      console.warn("Edge case generation failed", err);
+    } finally {
+      setIsGeneratingEdgeCases(false);
+    }
+  };
+
+  const handleApplyEdgeCase = (modifiedCode) => {
+    setCode(modifiedCode);
+    setIsEdgeCaseOpen(false);
+    handleRun(modifiedCode);
+  };
+
+  // ─── AI Feature 4: Interactive AlgoTutor Copilot Handlers ────────────────────
+  const handleSendTutorMessage = async (question) => {
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const userMsg = { sender: 'user', text: question, timestamp: time };
+    const updatedHistory = [...tutorMessages, userMsg];
+    setTutorMessages(updatedHistory);
+    setIsTutorTyping(true);
+
+    try {
+      const answer = await askAlgoTutor({
+        code,
+        steps,
+        currentStep,
+        activeStep,
+        question,
+        history: updatedHistory,
+        complexity,
+        traceError
+      });
+      const botTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setTutorMessages(prev => [...prev, { sender: 'assistant', text: answer, timestamp: botTime }]);
+    } catch (err) {
+      console.warn("AlgoTutor failed", err);
+      const botTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setTutorMessages(prev => [
+        ...prev,
+        {
+          sender: 'assistant',
+          text: `⚠️ AlgoTutor could not respond: ${err.message || 'Check your Groq API key configuration.'}`,
+          timestamp: botTime
+        }
+      ]);
+    } finally {
+      setIsTutorTyping(false);
+    }
+  };
+
+  const handleClearTutor = () => {
+    setTutorMessages([]);
   };
 
   const es = activeStep ? (EVENT_STYLES[activeStep.event] || EVENT_STYLES.line) : EVENT_STYLES.line;
@@ -235,19 +271,70 @@ Return ONLY valid JSON: {"explanation": "..."}`;
           <div className="flex items-center gap-1.5 flex-wrap">
             <BookOpen size={11} className="text-slate-600" />
             {Object.keys(EXAMPLES).map(name => (
-              <button key={name} onClick={() => { setSelectedExample(name); setCode(EXAMPLES[name]); setSteps([]); setHasRun(false); setComplexity(null); setFetchError(null); setTraceError(null); }}
+              <button key={name} onClick={() => {
+                setSelectedExample(name);
+                setCode(EXAMPLES[name]);
+                setSteps([]);
+                setHasRun(false);
+                setComplexity(null);
+                setFetchError(null);
+                setTraceError(null);
+                setEdgeCases([]);
+              }}
                 className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-all duration-150 ${selectedExample === name ? 'bg-blue-600/25 border-blue-500/50 text-blue-300' : 'border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-300'}`}>
                 {name}
               </button>
             ))}
             <div className="w-px h-3 bg-slate-700/60 mx-1" />
-            <button onClick={() => { setSelectedExample('Custom'); setCode('# Paste your Python code here\n\n'); setSteps([]); setHasRun(false); setComplexity(null); setFetchError(null); setTraceError(null); }}
+            <button onClick={() => {
+              setSelectedExample('Custom');
+              setCode('# Paste your Python code here\n\n');
+              setSteps([]);
+              setHasRun(false);
+              setComplexity(null);
+              setFetchError(null);
+              setTraceError(null);
+              setEdgeCases([]);
+            }}
               className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-all duration-150 ${selectedExample === 'Custom' ? 'bg-indigo-600/25 border-indigo-500/50 text-indigo-300' : 'border-slate-700/50 text-indigo-400/70 hover:border-indigo-500/50 hover:text-indigo-300'}`}>
               + Custom
             </button>
           </div>
         </div>
+
         <div className="flex items-center gap-2.5">
+          {/* Feature 3: Edge Case Button */}
+          {getApiKey() && (
+            <button
+              onClick={() => {
+                setIsEdgeCaseOpen(true);
+                if (edgeCases.length === 0) handleGenerateEdgeCases();
+              }}
+              title="AI Edge Case & Stress-Test Generator"
+              className="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:border-amber-500/50 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-150"
+            >
+              <Target size={13} className="text-amber-400" />
+              <span>Stress Tests</span>
+            </button>
+          )}
+
+          {/* Feature 4: AlgoTutor Button */}
+          {getApiKey() && (
+            <button
+              onClick={() => setIsTutorOpen(prev => !prev)}
+              title="Ask AlgoTutor about this execution"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-150 border ${
+                isTutorOpen
+                  ? 'bg-violet-600 text-white border-violet-500 shadow-md shadow-violet-500/25'
+                  : 'bg-violet-600/15 hover:bg-violet-600/25 text-violet-300 border-violet-500/30 hover:border-violet-500/50'
+              }`}
+            >
+              <Bot size={13} className={isTutorOpen ? 'text-white' : 'text-violet-400'} />
+              <span>AlgoTutor</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+            </button>
+          )}
+
           <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-1.5">
             <Settings2 size={11} className="text-slate-500" />
             <span className="text-xs text-slate-500">Steps:</span>
@@ -256,6 +343,7 @@ Return ONLY valid JSON: {"explanation": "..."}`;
               className="w-8 bg-transparent text-xs text-slate-200 font-mono text-center outline-none" min={1} max={50} />
             <span className="text-xs text-slate-700">/50</span>
           </div>
+
           <button id="run-trace-btn" onClick={handleRun} disabled={isLoading || !code.trim()}
             className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed text-white text-sm font-bold px-4 py-2 rounded-lg shadow-lg shadow-blue-500/20 transition-all duration-200 cursor-pointer">
             {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
@@ -275,14 +363,22 @@ Return ONLY valid JSON: {"explanation": "..."}`;
               <span className="text-xs text-slate-500 font-medium">Python Editor</span>
               {isPlaying && <span className="text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/30 px-1.5 py-0.5 rounded-full">Read-only while playing</span>}
             </div>
-            <div className="flex items-center gap-3">
-              {import.meta.env.VITE_GROQ_API_KEY && (
-                <button onClick={handleOptimizeCode} disabled={isOptimizing} className="flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-2.5 py-1 rounded-md border border-blue-500/30 transition-colors cursor-pointer text-[10px] font-bold">
-                  {isOptimizing ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />} Optimize
-                </button>
+            <div className="flex items-center gap-2">
+              {getApiKey() && (
+                <>
+                  <button onClick={handleOptimizeCode} disabled={isOptimizing} className="flex items-center gap-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-2.5 py-1 rounded-md border border-blue-500/30 transition-colors cursor-pointer text-[10px] font-bold">
+                    {isOptimizing ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />} Optimize
+                  </button>
+                  <button onClick={() => { setIsEdgeCaseOpen(true); if (edgeCases.length === 0) handleGenerateEdgeCases(); }} className="flex items-center gap-1 bg-amber-600/15 hover:bg-amber-600/30 text-amber-300 px-2.5 py-1 rounded-md border border-amber-500/30 transition-colors cursor-pointer text-[10px] font-bold">
+                    <Target size={11} /> Stress Tests
+                  </button>
+                  <button onClick={() => setIsTutorOpen(prev => !prev)} className="flex items-center gap-1 bg-violet-600/15 hover:bg-violet-600/30 text-violet-300 px-2.5 py-1 rounded-md border border-violet-500/30 transition-colors cursor-pointer text-[10px] font-bold">
+                    <Bot size={11} /> Ask Tutor
+                  </button>
+                </>
               )}
-              <span className="text-xs text-slate-700 font-mono">{code.split('\n').length} lines</span>
-              <div className="flex gap-1.5">
+              <span className="text-xs text-slate-700 font-mono ml-1">{code.split('\n').length} lines</span>
+              <div className="flex gap-1.5 ml-1">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500/60" />
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/60" />
@@ -351,7 +447,7 @@ Return ONLY valid JSON: {"explanation": "..."}`;
                 <div className={`flex items-center gap-1.5 ${es.text} text-xs`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${es.dot} animate-pulse`} />
                   {activeStep.event === 'call' ? 'Function called' : activeStep.event === 'return' ? 'Returning' : 'Executing'}
-                  {import.meta.env.VITE_GROQ_API_KEY && (
+                  {getApiKey() && (
                     <button onClick={() => handleExplainStep(currentStep)} disabled={isExplainingStep} className="ml-3 flex items-center gap-1 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 px-2 py-0.5 rounded border border-violet-500/30 transition-colors cursor-pointer">
                       <Sparkles size={11} /> {stepExplanations[currentStep] ? 'Explained' : 'Explain Step'}
                     </button>
@@ -396,7 +492,7 @@ Return ONLY valid JSON: {"explanation": "..."}`;
                     </div>
                   </div>
                 </div>
-              ) : !import.meta.env.VITE_GROQ_API_KEY ? (
+              ) : !getApiKey() ? (
                 <div className="bg-slate-900/40 px-4 py-2.5 flex items-center gap-2">
                   <Zap size={12} className="text-slate-600 shrink-0" />
                   <span className="text-[11px] text-slate-600">AI analysis disabled — set <code className="text-slate-500 bg-slate-800/60 px-1 rounded">VITE_GROQ_API_KEY</code> to enable complexity insights</span>
@@ -406,7 +502,16 @@ Return ONLY valid JSON: {"explanation": "..."}`;
           )}
 
           {/* Status banners */}
-          {hasRun && <StatusBanner error={traceError} truncated={truncated} timedOut={timedOut} />}
+          {hasRun && <StatusBanner 
+            error={traceError} truncated={truncated} timedOut={timedOut} 
+            isAnalyzing={isAnalyzingError} analysisResult={errorAnalysis} 
+            onAnalyze={getApiKey() ? handleAnalyzeError : undefined} 
+            onApplyFix={(fixedCode) => {
+              setCode(fixedCode);
+              setErrorAnalysis(null);
+              handleRun(fixedCode);
+            }}
+          />}
 
           {/* Tabs */}
           {hasRun && (
@@ -440,7 +545,7 @@ Return ONLY valid JSON: {"explanation": "..."}`;
                 <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
                   <div className="flex items-center gap-2 mb-2"><Info size={13} className="text-violet-400" /><span className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Trace Features</span></div>
                   <ul className="text-xs text-slate-500 space-y-1.5">
-                    {['Every line, call, and return is captured as a step','Variable state is snapshotted at each step','Max 50 steps prevents infinite loops','5-second wall-clock timeout','AI complexity analysis via Groq (needs VITE_GROQ_API_KEY)'].map((t, i) => (
+                    {['Every line, call, and return is captured as a step','Variable state is snapshotted at each step','Max 50 steps prevents infinite loops','5-second wall-clock timeout','AI complexity analysis & AlgoTutor copilot (needs VITE_GROQ_API_KEY)'].map((t, i) => (
                       <li key={i} className="flex items-start gap-2"><span className="text-blue-500 shrink-0">•</span>{t}</li>
                     ))}
                   </ul>
@@ -517,7 +622,7 @@ Return ONLY valid JSON: {"explanation": "..."}`;
                     </div>
                   ) : (
                     <p className="text-xs text-slate-600 text-center py-2">
-                      {import.meta.env.VITE_GROQ_API_KEY ? 'Analysis unavailable' : 'Set VITE_GROQ_API_KEY to enable AI complexity analysis'}
+                      {getApiKey() ? 'Analysis unavailable' : 'Set VITE_GROQ_API_KEY to enable AI complexity analysis'}
                     </p>
                   )}
                 </div>
@@ -587,6 +692,30 @@ Return ONLY valid JSON: {"explanation": "..."}`;
           )}
         </div>
       </div>
+
+      {/* Feature 3: AI Edge Case & Stress-Test Generator Modal */}
+      <EdgeCaseModal
+        isOpen={isEdgeCaseOpen}
+        onClose={() => setIsEdgeCaseOpen(false)}
+        isLoading={isGeneratingEdgeCases}
+        testCases={edgeCases}
+        onGenerate={handleGenerateEdgeCases}
+        onApplyCase={handleApplyEdgeCase}
+      />
+
+      {/* Feature 4: Interactive AlgoTutor Copilot Drawer */}
+      <AlgoTutorDrawer
+        isOpen={isTutorOpen}
+        onClose={() => setIsTutorOpen(false)}
+        messages={tutorMessages}
+        isTyping={isTutorTyping}
+        onSendMessage={handleSendTutorMessage}
+        onClearMessages={handleClearTutor}
+        currentStep={currentStep}
+        totalSteps={steps.length}
+        activeStep={activeStep}
+        hasRun={hasRun}
+      />
 
       {/* Inline styles for Monaco + scrollbar */}
       <style>{`
