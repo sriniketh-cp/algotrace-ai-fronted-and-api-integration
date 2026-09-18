@@ -4,7 +4,7 @@ import {
   Play, Pause, SkipBack, SkipForward, ChevronsLeft, ChevronsRight,
   Loader2, Zap, AlertTriangle, Code2, Settings2, Activity, Terminal,
   Cpu, MemoryStick, RefreshCw, Braces, BookOpen, Sparkles,
-  Target, Bot, Rocket
+  Target, Bot, Rocket, GraduationCap
 } from 'lucide-react';
 
 import { EXAMPLES, TYPE_STYLES, EVENT_STYLES, SPEEDS } from './utils/constants';
@@ -53,6 +53,9 @@ export default function App() {
   const [isTutorOpen, setIsTutorOpen] = useState(false);
   const [tutorMessages, setTutorMessages] = useState([]);
   const [isTutorTyping, setIsTutorTyping] = useState(false);
+
+  // Mobile responsive panel state ('editor' | 'trace')
+  const [mobilePanel, setMobilePanel] = useState('editor');
 
   const editorRef = useRef(null);
   const decorationsRef = useRef([]);
@@ -257,27 +260,31 @@ export default function App() {
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-base)', fontFamily: 'var(--font-sans)', color: '#e2e8f0' }}>
 
       {/* ── Top Navigation Bar ─────────────────────────────────────────────── */}
-      <header className="shrink-0 flex items-center justify-between px-5 py-0 border-b z-20"
+      <header className="shrink-0 flex items-center justify-between px-3 py-0 border-b z-20"
         style={{ borderColor: 'var(--border-subtle)', background: 'rgba(12,16,34,0.97)', backdropFilter: 'blur(16px)', height: '52px' }}>
 
         {/* Left: Brand + Examples */}
-        <div className="flex items-center gap-4 min-w-0">
+        <div className="flex items-center gap-2 min-w-0" style={{ flex: '1 1 0', overflow: 'hidden' }}>
           {/* Logo */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg"
               style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 0 16px rgba(99,102,241,0.4)' }}>
               <Activity size={15} className="text-white" />
             </div>
-            <div>
+            <div className="hide-mobile">
               <h1 className="text-sm font-extrabold leading-none gradient-text tracking-tight">AlgoTrace AI</h1>
               <p className="text-[10px] leading-none mt-0.5" style={{ color: 'rgba(148,163,184,0.5)' }}>Python Execution Tracer</p>
             </div>
+            {/* Mobile-only short brand */}
+            <h1 className="text-sm font-extrabold gradient-text" style={{ display: 'none' }}
+              ref={el => el && (el.style.display = window.innerWidth < 768 ? 'block' : 'none')}
+            >AlgoTrace</h1>
           </div>
 
-          <div className="h-5 w-px mx-0.5" style={{ background: 'var(--border-muted)' }} />
+          <div className="h-5 w-px mx-0.5 hide-mobile" style={{ background: 'var(--border-muted)' }} />
 
-          {/* Example pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+          {/* Example pills — hidden on mobile (shown in mobile AI bar) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto hide-mobile" style={{ scrollbarWidth: 'none' }}>
             <BookOpen size={11} style={{ color: 'rgba(148,163,184,0.35)', flexShrink: 0 }} />
             {Object.keys(EXAMPLES).map(name => (
               <button key={name} onClick={() => {
@@ -312,19 +319,20 @@ export default function App() {
         </div>
 
         {/* Right: AI Tools + Run */}
-        <div className="flex items-center gap-2 shrink-0 ml-3">
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          {/* Desktop/Tablet AI buttons */}
           {getApiKey() && (
             <>
               {/* Optimize */}
               <button onClick={() => handleOptimizeCode()}
                 title="AI Code Optimizer — Interview & Exam Mode (Zero Built-ins)"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
+                className="hide-mobile flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
                 style={{ background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.3)', color: '#93c5fd' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.18)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.1)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.3)'; }}>
                 <Zap size={12} style={{ color: '#60a5fa' }} />
-                <span>Optimize</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                <span className="hide-tablet-label">Optimize</span>
+                <span className="hide-tablet-label text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                   style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
                   No Built-ins
                 </span>
@@ -333,18 +341,18 @@ export default function App() {
               {/* Stress Tests */}
               <button onClick={() => { setIsEdgeCaseOpen(true); if (edgeCases.length === 0) handleGenerateEdgeCases(); }}
                 title="AI Edge Case & Stress-Test Generator"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
+                className="hide-mobile flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
                 style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.28)', color: '#fcd34d' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.16)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.45)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.28)'; }}>
                 <Target size={12} style={{ color: '#fbbf24' }} />
-                <span>Stress Tests</span>
+                <span className="hide-tablet-label">Stress Tests</span>
               </button>
 
               {/* AlgoTutor */}
               <button onClick={() => setIsTutorOpen(p => !p)}
                 title="AlgoTutor Copilot — Ask anything about this execution"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
+                className="hide-mobile flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all duration-150 border"
                 style={isTutorOpen ? {
                   background: 'rgba(139,92,246,0.85)', borderColor: 'rgba(139,92,246,0.7)', color: '#fff',
                   boxShadow: '0 0 12px rgba(139,92,246,0.35)'
@@ -354,41 +362,119 @@ export default function App() {
                 onMouseEnter={e => { if (!isTutorOpen) { e.currentTarget.style.background = 'rgba(139,92,246,0.18)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.45)'; } }}
                 onMouseLeave={e => { if (!isTutorOpen) { e.currentTarget.style.background = 'rgba(139,92,246,0.1)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.28)'; } }}>
                 <Bot size={12} style={{ color: isTutorOpen ? '#fff' : '#a78bfa' }} />
-                <span>AlgoTutor</span>
+                <span className="hide-tablet-label">AlgoTutor</span>
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: isTutorOpen ? '#fff' : '#a78bfa' }} />
               </button>
             </>
           )}
 
-          {/* Max Steps */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px]"
+          {/* Max Steps — icon-only on mobile */}
+          <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg border text-[11px]"
             style={{ background: 'rgba(15,23,42,0.7)', borderColor: 'var(--border-muted)', color: 'rgba(148,163,184,0.6)' }}>
             <Settings2 size={11} />
-            <span>Steps:</span>
+            <span className="hide-mobile">Steps:</span>
             <input type="number" value={maxSteps}
               onChange={e => setMaxSteps(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
               className="w-7 bg-transparent text-center outline-none font-mono font-semibold"
               style={{ color: '#e2e8f0' }} min={1} max={50} />
-            <span style={{ color: 'rgba(148,163,184,0.35)' }}>/50</span>
+            <span className="hide-mobile" style={{ color: 'rgba(148,163,184,0.35)' }}>/50</span>
           </div>
 
           {/* Run Trace */}
-          <button id="run-trace-btn" onClick={handleRun} disabled={isLoading || !code.trim()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white cursor-pointer transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+          <button id="run-trace-btn" onClick={() => { handleRun(); setMobilePanel('trace'); }} disabled={isLoading || !code.trim()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm text-white cursor-pointer transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 0 20px rgba(99,102,241,0.3)' }}
             onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.boxShadow = '0 0 28px rgba(99,102,241,0.5)'; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 0 20px rgba(99,102,241,0.3)'; }}>
             {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-            {isLoading ? 'Tracing…' : 'Run Trace'}
+            <span className="hide-mobile">{isLoading ? 'Tracing…' : 'Run Trace'}</span>
+            <span style={{ display: 'none' }}
+              ref={el => el && (el.style.display = window.innerWidth < 768 ? 'inline' : 'none')}>
+              {isLoading ? '…' : ''}
+            </span>
           </button>
         </div>
       </header>
 
+      {/* ── Mobile AI Toolbar (below header on small screens) ────────────────── */}
+      <div className="mobile-ai-bar">
+        {/* Example pills on mobile */}
+        <BookOpen size={11} style={{ color: 'rgba(148,163,184,0.35)', flexShrink: 0 }} />
+        {Object.keys(EXAMPLES).map(name => (
+          <button key={name} onClick={() => {
+            setSelectedExample(name); setCode(EXAMPLES[name]);
+            setSteps([]); setHasRun(false); setComplexity(null);
+            setFetchError(null); setTraceError(null); setEdgeCases([]);
+            setMobilePanel('editor');
+          }}
+            className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer whitespace-nowrap"
+            style={selectedExample === name ? {
+              background: 'rgba(99,102,241,0.2)', borderColor: 'rgba(99,102,241,0.5)', color: '#a5b4fc'
+            } : {
+              background: 'transparent', borderColor: 'var(--border-subtle)', color: 'rgba(148,163,184,0.6)'
+            }}>
+            {name}
+          </button>
+        ))}
+        <button onClick={() => {
+          setSelectedExample('Custom'); setCode('# Paste your Python code here\n\n');
+          setSteps([]); setHasRun(false); setComplexity(null);
+          setFetchError(null); setTraceError(null); setEdgeCases([]);
+          setMobilePanel('editor');
+        }}
+          className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer whitespace-nowrap"
+          style={selectedExample === 'Custom' ? {
+            background: 'rgba(139,92,246,0.2)', borderColor: 'rgba(139,92,246,0.5)', color: '#c4b5fd'
+          } : {
+            background: 'transparent', borderColor: 'var(--border-subtle)', color: 'rgba(139,92,246,0.55)'
+          }}>
+          + Custom
+        </button>
+        {getApiKey() && (
+          <>
+            <div className="w-px h-4 shrink-0" style={{ background: 'var(--border-muted)' }} />
+            <button onClick={() => handleOptimizeCode()} title="Optimize"
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer"
+              style={{ background: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.3)', color: '#93c5fd' }}>
+              <Zap size={11} /><span>Optimize</span>
+            </button>
+            <button onClick={() => { setIsEdgeCaseOpen(true); if (edgeCases.length === 0) handleGenerateEdgeCases(); }} title="Stress Tests"
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer"
+              style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.28)', color: '#fcd34d' }}>
+              <Target size={11} /><span>Stress Tests</span>
+            </button>
+            <button onClick={() => setIsTutorOpen(p => !p)} title="AlgoTutor"
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer"
+              style={isTutorOpen ? {
+                background: 'rgba(139,92,246,0.85)', borderColor: 'rgba(139,92,246,0.7)', color: '#fff'
+              } : {
+                background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.28)', color: '#c4b5fd'
+              }}>
+              <Bot size={11} /><span>AlgoTutor</span>
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* ── Mobile Panel Switcher Tabs ─────────────────────────────────────── */}
+      <div className="mobile-panel-tabs">
+        {[{ id: 'editor', label: '{ } Editor', icon: Code2 }, { id: 'trace', label: '⚡ Trace', icon: Activity }].map(tab => (
+          <button key={tab.id} onClick={() => setMobilePanel(tab.id)}
+            style={{ flex: 1, padding: '10px 0', fontSize: '12px', fontWeight: 700,
+              borderBottom: `2px solid ${mobilePanel === tab.id ? '#6366f1' : 'transparent'}`,
+              color: mobilePanel === tab.id ? '#a5b4fc' : 'rgba(148,163,184,0.5)',
+              background: mobilePanel === tab.id ? 'rgba(99,102,241,0.06)' : 'transparent',
+              cursor: 'pointer', transition: 'all 0.15s' }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* ── Main Two-Pane Layout ───────────────────────────────────────────── */}
-      <div className="flex flex-1 min-h-0">
+      <div className="main-layout flex flex-1 min-h-0">
 
         {/* ── LEFT: Editor Pane ───────────────────────────────────────────── */}
-        <div className="flex flex-col min-h-0 border-r" style={{ width: '55%', borderColor: 'var(--border-subtle)' }}>
+        <div className={`editor-pane flex flex-col min-h-0 border-r${mobilePanel !== 'editor' ? ' panel-hidden' : ''}`} style={{ borderColor: 'var(--border-subtle)' }}>
 
           {/* Editor Header */}
           <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b"
@@ -515,7 +601,7 @@ export default function App() {
         </div>
 
         {/* ── RIGHT: Trace Pane ────────────────────────────────────────────── */}
-        <div className="flex flex-col min-h-0" style={{ width: '45%', background: 'rgba(9,13,25,0.5)' }}>
+        <div className={`trace-pane flex flex-col min-h-0${mobilePanel !== 'trace' ? ' panel-hidden' : ''}`} style={{ background: 'rgba(9,13,25,0.5)' }}>
 
           {/* ── Step Info Bar ─── */}
           {hasRun && activeStep ? (

@@ -183,3 +183,80 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   outline: 2px solid rgba(99,102,241,0.6);
   outline-offset: 2px;
 }
+
+/* ─── Responsive Layout ─────────────────────────────────────────────────────── */
+
+/* Mobile panel switcher tab bar */
+.mobile-panel-tabs {
+  display: none;
+}
+
+/* Mobile AI toolbar row (shown below header on small screens) */
+.mobile-ai-bar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* Hide desktop-only nav items on mobile */
+  .hide-mobile { display: none !important; }
+
+  /* Mobile panel tabs visible */
+  .mobile-panel-tabs {
+    display: flex;
+    align-items: center;
+    background: rgba(9,13,25,0.95);
+    border-bottom: 1px solid rgba(148,163,184,0.08);
+    z-index: 15;
+  }
+
+  /* Mobile AI bar visible */
+  .mobile-ai-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(12,16,34,0.97);
+    border-bottom: 1px solid rgba(148,163,184,0.08);
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex-shrink: 0;
+  }
+  .mobile-ai-bar::-webkit-scrollbar { display: none; }
+
+  /* Full-width panels on mobile */
+  .editor-pane, .trace-pane {
+    width: 100% !important;
+    border-right: none !important;
+  }
+
+  /* Main two-pane becomes a single-panel view */
+  .main-layout {
+    flex-direction: column;
+  }
+
+  /* Ensure hidden panel takes no space */
+  .panel-hidden {
+    display: none !important;
+  }
+
+  /* Touch-friendly button sizing */
+  .touch-target {
+    min-height: 40px;
+    min-width: 40px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Tablet: hide text labels on AI buttons, keep icons */
+  .hide-tablet-label { display: none !important; }
+
+  /* Tablet: equal split */
+  .editor-pane { width: 50% !important; }
+  .trace-pane  { width: 50% !important; }
+}
+
+@media (min-width: 1024px) {
+  /* Desktop: original 55/45 split */
+  .editor-pane { width: 55% !important; }
+  .trace-pane  { width: 45% !important; }
+}
