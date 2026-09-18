@@ -1,3 +1,7 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import {
@@ -106,7 +110,7 @@ export default function App() {
     setHasRun(false);
     setStepExplanations({});
     try {
-      const res = await fetch('http://localhost:8000/trace', {
+      const res = await fetch(`${API_BASE_URL}/trace`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: codeToRun, max_steps: maxSteps }),
