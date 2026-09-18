@@ -4,7 +4,7 @@ import {
   Play, Pause, SkipBack, SkipForward, ChevronsLeft, ChevronsRight,
   Loader2, Zap, AlertTriangle, Code2, Settings2, Activity, Terminal,
   Cpu, MemoryStick, RefreshCw, Braces, BookOpen, Sparkles,
-  Target, Bot, Rocket
+  Target, Bot, Rocket,GraduationCap
 } from 'lucide-react';
 
 import { EXAMPLES, TYPE_STYLES, EVENT_STYLES, SPEEDS } from './utils/constants';
