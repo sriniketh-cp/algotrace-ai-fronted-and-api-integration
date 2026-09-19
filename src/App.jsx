@@ -18,6 +18,7 @@ import {
   optimizeCode, explainStep, analyzeCrash, getApiKey
 } from './services/aiService';
 
+
 const RAW_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_BASE_URL = RAW_API_URL.replace(/^["']|["']$/g, '').replace(/\/+$/, '');
 
@@ -272,7 +273,11 @@ export default function App() {
           <div className="flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg"
               style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 0 16px rgba(99,102,241,0.4)' }}>
-              <Activity size={15} className="text-white" />
+              <img
+                src="/logo.png"
+                alt="AlgoTrace AI"
+                className="w-5 h-5 object-contain"
+              />
             </div>
             <div className="hide-mobile">
               <h1 className="text-sm font-extrabold leading-none gradient-text tracking-tight">AlgoTrace AI</h1>
@@ -463,11 +468,13 @@ export default function App() {
       <div className="mobile-panel-tabs">
         {[{ id: 'editor', label: '{ } Editor', icon: Code2 }, { id: 'trace', label: '⚡ Trace', icon: Activity }].map(tab => (
           <button key={tab.id} onClick={() => setMobilePanel(tab.id)}
-            style={{ flex: 1, padding: '10px 0', fontSize: '12px', fontWeight: 700,
+            style={{
+              flex: 1, padding: '10px 0', fontSize: '12px', fontWeight: 700,
               borderBottom: `2px solid ${mobilePanel === tab.id ? '#6366f1' : 'transparent'}`,
               color: mobilePanel === tab.id ? '#a5b4fc' : 'rgba(148,163,184,0.5)',
               background: mobilePanel === tab.id ? 'rgba(99,102,241,0.06)' : 'transparent',
-              cursor: 'pointer', transition: 'all 0.15s' }}>
+              cursor: 'pointer', transition: 'all 0.15s'
+            }}>
             {tab.label}
           </button>
         ))}
@@ -783,7 +790,7 @@ export default function App() {
                     Code runs safely in an isolated Python sandbox:
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {['abs','all','any','bool','chr','dict','divmod','enumerate','filter','float','frozenset','int','isinstance','len','list','map','max','min','ord','pow','print','range','repr','reversed','round','set','sorted','str','sum','tuple','zip','type'].map(b => (
+                    {['abs', 'all', 'any', 'bool', 'chr', 'dict', 'divmod', 'enumerate', 'filter', 'float', 'frozenset', 'int', 'isinstance', 'len', 'list', 'map', 'max', 'min', 'ord', 'pow', 'print', 'range', 'repr', 'reversed', 'round', 'set', 'sorted', 'str', 'sum', 'tuple', 'zip', 'type'].map(b => (
                       <code key={b} className="text-[10px] px-1.5 py-0.5 rounded font-mono"
                         style={{ background: 'rgba(34,197,94,0.08)', color: '#86efac', border: '1px solid rgba(34,197,94,0.15)' }}>
                         {b}
